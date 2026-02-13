@@ -18,12 +18,12 @@ const getCategoryColor = (categoryName) => {
   const lower = categoryName.toLowerCase();
   if (lower.includes('ataque') || lower.includes('ofensiv') || lower.includes('golo')) return 'green';
   if (lower.includes('defesa') || lower.includes('defensiv') || lower.includes('perda')) return 'red';
-  if (lower.includes('disciplina') || lower.includes('cartão')) return 'yellow'; // yellow mapped to discipline logic later
+  if (lower.includes('disciplina') || lower.includes('cartão')) return 'yellow';
   return 'blue';
 };
 
-// --- Botão de Etiqueta Personalizado ---
-const TagButton = ({ label, selected, onClick, color = "blue", onDelete }) => {
+// --- Botão de Etiqueta Personalizado (Otimizado com memo) ---
+const TagButton = React.memo(({ label, selected, onClick, color = "blue", onDelete }) => {
   const baseClasses = "px-4 py-2 rounded-lg font-semibold transition-all duration-200 border-2 relative group";
   const variants = {
     blue: selected 
@@ -56,7 +56,7 @@ const TagButton = ({ label, selected, onClick, color = "blue", onDelete }) => {
       )}
     </div>
   );
-};
+});
 
 export default function App() {
   // --- Estados ---
@@ -94,6 +94,24 @@ export default function App() {
   const fileInputRef = useRef(null);
   const xmlInputRef = useRef(null);
   const csvInputRef = useRef(null);
+  const customTagInputRef = useRef(null); // Ref para foco automático
+
+  // --- Limpeza de Memória ---
+  useEffect(() => {
+    // Revoga a URL do objeto quando o componente desmonta ou o videoSrc muda
+    return () => {
+      if (videoSrc) {
+        URL.revokeObjectURL(videoSrc);
+      }
+    };
+  }, [videoSrc]);
+
+  // Foco automático ao abrir modal
+  useEffect(() => {
+    if (isModalOpen && customTagInputRef.current) {
+      setTimeout(() => customTagInputRef.current.focus(), 100);
+    }
+  }, [isModalOpen]);
 
   // --- Importação de CSV (Etiquetas) ---
   const handleCSVUpload = (event) => {
@@ -145,6 +163,7 @@ export default function App() {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
+      // Se já existir um vídeo, a limpeza é tratada pelo useEffect
       const url = URL.createObjectURL(file);
       setVideoSrc(url);
       setInPoint(null);
@@ -272,13 +291,15 @@ export default function App() {
   }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration]);
 
   // --- Gestão de Clips ---
-  const toggleTag = (tag) => {
-    if (currentTags.includes(tag)) {
-      setCurrentTags(currentTags.filter(t => t !== tag));
-    } else {
-      setCurrentTags([...currentTags, tag]);
-    }
-  };
+  const toggleTag = useCallback((tag) => {
+    setCurrentTags(prev => {
+      if (prev.includes(tag)) {
+        return prev.filter(t => t !== tag);
+      } else {
+        return [...prev, tag];
+      }
+    });
+  }, []);
 
   // Função para adicionar nova etiqueta personalizada manualmente (extra)
   const addCustomTag = () => {
@@ -576,7 +597,8 @@ export default function App() {
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Etiqueta Extra</h4>
                   <div className="flex gap-2">
                     <input 
-                      type="text" 
+                      type="text"
+                      ref={customTagInputRef}
                       value={newTagInput}
                       onChange={(e) => setNewTagInput(e.target.value)}
                       placeholder="Criar nova..."
