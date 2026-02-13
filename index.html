@@ -196,6 +196,7 @@
             const fileInputRef = useRef(null);
             const dbInputRef = useRef(null);
             const comboInputRef = useRef(null); 
+            const projectInputRef = useRef(null); // Ref para importar projeto
 
             // --- Cálculos de Estatísticas ---
             const stats = useMemo(() => {
@@ -296,6 +297,57 @@
             const handleFileUpload = (e) => { const f = e.target.files[0]; if(f) { setVideoSrc(URL.createObjectURL(f)); setVideoFileName(f.name); }};
             const addCombination = () => { if(newComboInput.trim() && !combinations.includes(newComboInput.trim())) { setCombinations([...combinations, newComboInput.trim()]); setNewComboInput(""); }};
             
+            // --- Gestão de Projetos (Save/Load) ---
+            const saveProject = () => {
+                const projectData = {
+                    version: "1.1",
+                    timestamp: new Date().toISOString(),
+                    matchInfo,
+                    clips,
+                    combinations,
+                    videoFileName
+                };
+                const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `projeto_scoutmaster_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            };
+
+            const loadProject = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        
+                        // Validar estrutura básica
+                        if (data.matchInfo && Array.isArray(data.clips)) {
+                            if(confirm("Carregar este projeto irá substituir os dados atuais. Deseja continuar?")) {
+                                setMatchInfo(data.matchInfo);
+                                setClips(data.clips);
+                                if(data.combinations) setCombinations(data.combinations);
+                                
+                                // Resetar seleção
+                                setSelectedClips([]);
+                                
+                                alert(`Projeto carregado com sucesso!\n\nNota: Por limitações de segurança do navegador, deve carregar novamente o ficheiro de vídeo: "${data.videoFileName || 'desconhecido'}"`);
+                            }
+                        } else {
+                            alert("Ficheiro de projeto inválido.");
+                        }
+                    } catch (err) {
+                        alert("Erro ao ler o ficheiro de projeto.");
+                        console.error(err);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
             // --- Gestão de Combinações ---
             const exportCombinations = () => {
                 const data = JSON.stringify(combinations);
@@ -418,10 +470,31 @@
                 });
             };
 
+            // EXPORTAR XML COM NOMES DE JOGADORES
             const exportXML = () => {
                 let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<analise>\n';
                 clips.forEach(c => {
-                    xml += `<corte id="${c.id}"><inicio>${c.start}</inicio><equipa>${c.team === 'A' ? matchInfo.teamA : matchInfo.teamB}</equipa><tags>${c.tags.join(',')}</tags></corte>\n`;
+                    const teamName = c.team === 'A' ? matchInfo.teamA : matchInfo.teamB;
+                    
+                    xml += `  <corte id="${c.id}">\n`;
+                    xml += `    <inicio>${c.start.toFixed(2)}</inicio>\n`;
+                    xml += `    <fim>${c.end.toFixed(2)}</fim>\n`;
+                    xml += `    <equipa>${teamName}</equipa>\n`;
+                    
+                    // Adicionar secção de jogadores
+                    if (c.players.length > 0) {
+                        xml += `    <jogadores>\n`;
+                        c.players.forEach(p => {
+                            xml += `      <jogador numero="${p.number}">${p.name}</jogador>\n`;
+                        });
+                        xml += `    </jogadores>\n`;
+                    } else {
+                        xml += `    <jogadores/>\n`;
+                    }
+
+                    xml += `    <tags>${c.tags.join(',')}</tags>\n`;
+                    xml += `    <nota>${c.comment || ''}</nota>\n`;
+                    xml += `  </corte>\n`;
                 });
                 xml += '</analise>';
                 const b = new Blob([xml], {type:'text/xml'});
@@ -697,6 +770,14 @@
                     React.createElement('div', { className: "flex items-center gap-2" },
                         React.createElement('button', { onClick: () => setShowStatsModal(true), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 mr-2 text-purple-400" }, React.createElement(BarChart2, { size: 16 }), "Estatísticas"),
                         React.createElement('div', { className: "h-6 w-px bg-slate-800 mx-2" }),
+                        
+                        // Botões de Projeto (Guardar/Abrir)
+                        React.createElement('input', { type: "file", accept: ".json", onChange: loadProject, ref: projectInputRef, className: "hidden" }),
+                        React.createElement('button', { onClick: saveProject, title: "Guardar Projeto", className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 text-green-400" }, React.createElement(Save, { size: 16 }), "Guardar"),
+                        React.createElement('button', { onClick: () => projectInputRef.current.click(), title: "Abrir Projeto", className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 mr-2 text-yellow-400" }, React.createElement(FolderInput, { size: 16 }), "Abrir"),
+
+                        React.createElement('div', { className: "h-6 w-px bg-slate-800 mx-2" }),
+
                         React.createElement('button', { onClick: () => setIsConfigModalOpen(true), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700" }, React.createElement(Settings, { size: 16 }), "Equipas"),
                         React.createElement('input', { type: "file", accept: "video/*", onChange: handleFileUpload, ref: fileInputRef, className: "hidden" }),
                         React.createElement('button', { onClick: () => fileInputRef.current.click(), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 ml-2" }, React.createElement(Upload, { size: 16 }), "Vídeo"),
