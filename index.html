@@ -41,7 +41,7 @@
             FolderInput, Plus, MinusCircle, FileSpreadsheet,
             CheckSquare, Square, Film, Loader2, Clapperboard, MonitorPlay,
             Settings, UserPlus, Users, Shirt, Shield, Swords, FileJson, SaveAll, 
-            Database, MapPin, BarChart2, Filter, PieChart, LayoutGrid, FileUp, FileDown
+            Database, MapPin, BarChart2, Filter, PieChart, LayoutGrid
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- Utilitários ---
@@ -56,7 +56,8 @@
         const getCategoryColor = (categoryName) => {
             const lower = categoryName.toLowerCase();
             if (lower === 'posicao' || lower === 'posição') return 'orange';
-            if (lower === 'remate') return 'green';
+            if (lower === 'resultado') return 'green';
+            if (lower === 'turn over') return 'rose';
             if (lower === 'fase') return 'blue';
             if (lower === 'situação') return 'slate';
             if (lower === 'sanções') return 'red';
@@ -64,6 +65,19 @@
             if (lower === 'combinações') return 'purple';
             return 'blue';
         };
+
+        // --- Dados Estáticos (Definidos antes da App para segurança) ---
+        const staticCategories = {
+            "Posição": ["Guarda-Redes", "Ponta Esquerda", "Lateral Esquerda", "Central", "Lateral Direita", "Ponta Direita", "Pivot"],
+            "Resultado": ["Golo", "Defesa", "Fora", "Falta", "7 Metros"],
+            "Turn Over": ["Falha Técnica", "Intercepção"],
+            "Fase": ["Ofensiva", "Defensiva", "1ª Vaga", "2ª Vaga", "3ª Vaga", "7 metros"],
+            "Situação": ["Igualdade", "Superioridade", "Inferioridade", "Igualdade s/GR", "7x6", "Baliza Aberta"],
+            "Sanções": ["2min", "Amarelo", "Vermelho"]
+        };
+        const zones = ["Zona 1", "Zona 2", "Zona 3", "Zona 4", "Zona 5", "Zona 6", "Zona 7", "Zona 8"];
+        const specialZones = ["Zona 2", "Zona 3", "Zona 4"];
+        const zoneDetails = ["Remate Média Distância", "Remate Curta Distância"];
 
         // --- Componentes UI ---
         const TagButton = React.memo(({ label, selected, onClick, color = "blue", onDelete, small = false }) => {
@@ -76,6 +90,7 @@
                 slate: selected ? "bg-slate-500 border-slate-500 text-white shadow-lg scale-105" : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-200",
                 purple: selected ? "bg-purple-600 border-purple-600 text-white shadow-lg scale-105" : "bg-slate-800 border-slate-700 text-slate-300 hover:border-purple-500 hover:text-white",
                 orange: selected ? "bg-orange-600 border-orange-600 text-white shadow-lg scale-105" : "bg-slate-800 border-slate-700 text-slate-300 hover:border-orange-500 hover:text-white",
+                rose: selected ? "bg-rose-600 border-rose-600 text-white shadow-lg scale-105" : "bg-slate-800 border-slate-700 text-slate-300 hover:border-rose-500 hover:text-white",
             };
             return React.createElement('div', { className: "relative inline-block" },
                 React.createElement('button', { onClick: onClick, className: `${baseClasses} ${variants[color] || variants.blue}` }, label),
@@ -95,48 +110,35 @@
                     React.createElement('rect', { x: "0", y: "0", width: "400", height: "220", fill: "#0f172a" }),
                     
                     // --- ZONAS DE LONGA DISTÂNCIA (>9m) ---
-                    // Esquerda Visual (Agora Zona 8 - LD Longa)
                     React.createElement('path', { d: "M 0,0 L 133,0 L 133,90 L 0,90 Z", className: getClass("Zona 8"), onClick: () => onToggleZone("Zona 8") }),
                     React.createElement('text', { x: "55", y: "50", className: getTextClass }, "Z8"),
 
-                    // Centro Visual (Mantém Zona 7 - Central Longa)
                     React.createElement('path', { d: "M 133,0 L 266,0 L 266,90 L 133,90 Z", className: getClass("Zona 7"), onClick: () => onToggleZone("Zona 7") }),
                     React.createElement('text', { x: "190", y: "50", className: getTextClass }, "Z7"),
 
-                    // Direita Visual (Agora Zona 6 - LE Longa)
                     React.createElement('path', { d: "M 266,0 L 400,0 L 400,90 L 266,90 Z", className: getClass("Zona 6"), onClick: () => onToggleZone("Zona 6") }),
                     React.createElement('text', { x: "325", y: "50", className: getTextClass }, "Z6"),
 
                     // --- ZONAS DE PONTA (Cantos) ---
-                    // Esquerda Visual (Agora Zona 5 - PD Ponta Direita)
                     React.createElement('path', { d: "M 0,90 L 60,90 L 60,220 L 0,220 Z", className: getClass("Zona 5"), onClick: () => onToggleZone("Zona 5") }),
                     React.createElement('text', { x: "20", y: "160", className: getTextClass }, "Z5"),
 
-                    // Direita Visual (Agora Zona 1 - PE Ponta Esquerda)
                     React.createElement('path', { d: "M 340,90 L 400,90 L 400,220 L 340,220 Z", className: getClass("Zona 1"), onClick: () => onToggleZone("Zona 1") }),
                     React.createElement('text', { x: "360", y: "160", className: getTextClass }, "Z1"),
 
                     // --- ZONAS CENTRAIS (6-9m e Penetração) ---
-                    // Esquerda Visual (Agora Zona 4 - LD Lateral Direito)
                     React.createElement('path', { d: "M 60,90 L 140,90 L 140,220 L 60,220 Z", className: getClass("Zona 4"), onClick: () => onToggleZone("Zona 4") }),
                     React.createElement('text', { x: "90", y: "155", className: getTextClass }, "Z4"),
 
-                    // Centro Visual (Mantém Zona 3 - Central)
                     React.createElement('path', { d: "M 140,90 L 260,90 L 260,220 L 140,220 Z", className: getClass("Zona 3"), onClick: () => onToggleZone("Zona 3") }),
                     React.createElement('text', { x: "190", y: "155", className: getTextClass }, "Z3"),
 
-                    // Direita Visual (Agora Zona 2 - LE Lateral Esquerdo)
                     React.createElement('path', { d: "M 260,90 L 340,90 L 340,220 L 260,220 Z", className: getClass("Zona 2"), onClick: () => onToggleZone("Zona 2") }),
                     React.createElement('text', { x: "290", y: "155", className: getTextClass }, "Z2"),
 
-                    // --- ELEMENTOS VISUAIS (Não clicáveis) ---
-                    // Linha de 9m (Tracejada visual)
+                    // --- ELEMENTOS VISUAIS ---
                     React.createElement('path', { d: "M 0,90 L 400,90", fill: "none", stroke: "#cbd5e1", strokeWidth: "1", strokeDasharray: "5,5", className: "pointer-events-none opacity-50" }),
-                    
-                    // Linha de 6m (Aproximada)
                     React.createElement('path', { d: "M 50,220 C 50,160 350,160 350,220", fill: "none", stroke: "#94a3b8", strokeWidth: "2", className: "pointer-events-none opacity-50" }),
-
-                    // Baliza
                     React.createElement('rect', { x: "170", y: "215", width: "60", height: "5", fill: "#ef4444", className: "pointer-events-none" }) 
                 ),
                 React.createElement('div', { className: "absolute bottom-1 right-2 text-[9px] text-slate-500 font-mono" }, "Ataque ↓")
@@ -169,14 +171,14 @@
             
             // Modais e UI
             const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-            const [isModalOpen, setIsModalOpen] = useState(false); // Tagging Modal
-            const [showStatsModal, setShowStatsModal] = useState(false); // Stats Modal
-            const [showFilters, setShowFilters] = useState(false); // Filter Toggle
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [showStatsModal, setShowStatsModal] = useState(false);
+            const [showFilters, setShowFilters] = useState(false);
 
             // Filtros
             const [filters, setFilters] = useState({ team: 'all', player: 'all', tag: 'all' });
 
-            // Inputs Temporários (Adicionado 'pos' para posição opcional)
+            // Inputs Temporários
             const [tempPlayerA, setTempPlayerA] = useState({ num: '', name: '', pos: '' });
             const [tempPlayerB, setTempPlayerB] = useState({ num: '', name: '', pos: '' });
             const [isProcessing, setIsProcessing] = useState(false);
@@ -192,28 +194,10 @@
             // Refs
             const videoRef = useRef(null);
             const fileInputRef = useRef(null);
-            const xmlInputRef = useRef(null);
-            const csvInputRef = useRef(null);
-            const customTagInputRef = useRef(null);
-            const dbInputRef = useRef(null); // Para importar Equipas
-            const comboInputRef = useRef(null); // Para importar Combinações
-            const recorderRef = useRef(null);
-            const chunksRef = useRef([]);
-            const processingQueueRef = useRef([]);
+            const dbInputRef = useRef(null);
+            const comboInputRef = useRef(null); 
 
-            // Categorias Estáticas
-            const staticCategories = {
-                "Posição": ["Guarda-Redes", "Ponta Esquerda", "Lateral Esquerda", "Central", "Lateral Direita", "Ponta Direita", "Pivot"],
-                "Remate": ["Golo", "Defesa", "Fora", "Falta 7 metros"],
-                "Fase": ["Ofensiva", "Defensiva", "1ª Vaga", "2ª Vaga", "3ª Vaga", "7 metros"],
-                "Situação": ["Igualdade", "Superioridade", "Inferioridade", "Igualdade s/GR", "7x6", "Baliza Aberta"],
-                "Sanções": ["2min", "Amarelo", "Vermelho"]
-            };
-            const zones = ["Zona 1", "Zona 2", "Zona 3", "Zona 4", "Zona 5", "Zona 6", "Zona 7", "Zona 8"];
-            const specialZones = ["Zona 2", "Zona 3", "Zona 4"];
-            const zoneDetails = ["Remate Média Distância", "Remate Curta Distância"];
-
-            // --- Cálculos de Estatísticas (Memoized) ---
+            // --- Cálculos de Estatísticas ---
             const stats = useMemo(() => {
                 const total = clips.length;
                 const byTeam = {
@@ -221,15 +205,13 @@
                     B: clips.filter(c => c.team === 'B').length
                 };
                 
-                // Eficácia de Remate (Golos / Total de Remates ou Total de Clips marcados como remate)
-                // Assumindo que qualquer clip com tag "Golo", "Defesa", "Fora" é um remate
+                // Ajustado para o novo campo "Resultado"
                 const isShot = (c) => c.tags.some(t => ["Golo", "Defesa", "Fora"].includes(t));
                 const shotsA = clips.filter(c => c.team === 'A' && isShot(c));
                 const goalsA = shotsA.filter(c => c.tags.includes("Golo")).length;
                 const shotsB = clips.filter(c => c.team === 'B' && isShot(c));
                 const goalsB = shotsB.filter(c => c.tags.includes("Golo")).length;
 
-                // Top Jogadores
                 const playerCounts = {};
                 clips.forEach(c => {
                     c.players.forEach(p => {
@@ -274,7 +256,7 @@
                 return () => window.removeEventListener('keydown', handleKeyDown);
             }, [isPlaying, isModalOpen, duration, isProcessing, isConfigModalOpen, showStatsModal]);
 
-            // --- Funções Auxiliares (Gestão de DB e Players) ---
+            // --- Funções Auxiliares ---
             const togglePlay = () => { if (videoRef.current) { if (isPlaying) videoRef.current.pause(); else videoRef.current.play(); setIsPlaying(!isPlaying); } };
             const setIn = useCallback(() => { if (videoRef.current) setInPoint(videoRef.current.currentTime); }, []);
             const setOutAndOpenModal = useCallback(() => {
@@ -285,16 +267,13 @@
                 setIsModalOpen(true);
             }, [inPoint]);
 
-            // Tagging Logic
             const toggleTag = useCallback((tag) => setCurrentTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]), []);
             
-            // Lógica de Seleção de Jogador com Auto-Tagging de Posição
             const togglePlayerSelection = useCallback((player) => {
                 setSelectedPlayers(prev => {
                     const isSelecting = !prev.some(p => p.id === player.id);
-                    
+                    // Auto-tagging de Posição
                     if (isSelecting && player.position) {
-                        // Verifica se a posição é válida e se já não está nas tags
                         setCurrentTags(tags => {
                             if (!tags.includes(player.position) && staticCategories["Posição"].includes(player.position)) {
                                 return [...tags, player.position];
@@ -302,7 +281,6 @@
                             return tags;
                         });
                     }
-
                     return isSelecting ? [...prev, player] : prev.filter(p => p.id !== player.id);
                 });
             }, []);
@@ -315,7 +293,6 @@
             const deleteClip = (id) => { setClips(clips.filter(c => c.id !== id)); setSelectedClips(selectedClips.filter(sid => sid !== id)); };
             const jumpToClip = (start) => { if (videoRef.current) { videoRef.current.currentTime = start; videoRef.current.play(); setIsPlaying(true); } };
             
-            // --- Handlers Básicos ---
             const handleFileUpload = (e) => { const f = e.target.files[0]; if(f) { setVideoSrc(URL.createObjectURL(f)); setVideoFileName(f.name); }};
             const addCombination = () => { if(newComboInput.trim() && !combinations.includes(newComboInput.trim())) { setCombinations([...combinations, newComboInput.trim()]); setNewComboInput(""); }};
             
@@ -348,7 +325,7 @@
                 reader.readAsText(file);
             };
 
-            // --- Gestão de Equipas (Atualizada) ---
+            // --- Gestão de Equipas ---
             const addPlayer = (side) => {
                 const inp = side === 'A' ? tempPlayerA : tempPlayerB;
                 if(!inp.num || !inp.name) return;
@@ -358,15 +335,10 @@
                     const key = side === 'A' ? 'playersA' : 'playersB';
                     const newPlayers = [...prev[key], newP];
                     const newState = { ...prev, [key]: newPlayers };
-                    
-                    // Atualiza também na DB se estiver linkada
                     const teamId = side === 'A' ? prev.teamAId : prev.teamBId;
-                    if (teamId) {
-                        setTeamDatabase(db => db.map(t => t.id === teamId ? { ...t, players: newPlayers } : t));
-                    }
+                    if (teamId) { setTeamDatabase(db => db.map(t => t.id === teamId ? { ...t, players: newPlayers } : t)); }
                     return newState;
                 });
-                
                 if(side === 'A') setTempPlayerA({num:'', name:'', pos:''}); else setTempPlayerB({num:'', name:'', pos:''});
             };
 
@@ -375,14 +347,11 @@
                     const key = side === 'A' ? 'playersA' : 'playersB';
                     const newPlayers = prev[key].filter(p => p.id !== id);
                     const teamId = side === 'A' ? prev.teamAId : prev.teamBId;
-                    if (teamId) {
-                         setTeamDatabase(db => db.map(t => t.id === teamId ? { ...t, players: newPlayers } : t));
-                    }
+                    if (teamId) { setTeamDatabase(db => db.map(t => t.id === teamId ? { ...t, players: newPlayers } : t)); }
                     return { ...prev, [key]: newPlayers };
                 });
             };
 
-            // Exportar DB (Ficheiro Único)
             const exportDatabase = () => {
                 const data = JSON.stringify({ version: "1.0", teams: teamDatabase });
                 const blob = new Blob([data], { type: 'application/json' });
@@ -395,7 +364,6 @@
                 a.remove();
             };
 
-            // Importar DB e Fundir
             const loadDatabase = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -404,19 +372,17 @@
                     try {
                         const data = JSON.parse(evt.target.result);
                         if (Array.isArray(data.teams)) {
-                            // Merge evitando IDs duplicados
                             setTeamDatabase(prev => {
                                 const newTeams = data.teams.filter(t => !prev.some(p => p.id === t.id));
                                 return [...prev, ...newTeams];
                             });
-                            alert(`${data.teams.length} equipas carregadas com sucesso! Agora pode selecioná-las na lista.`);
+                            alert(`${data.teams.length} equipas carregadas com sucesso!`);
                         }
                     } catch (err) { alert("Erro no ficheiro de equipas."); }
                 };
                 reader.readAsText(file);
             };
 
-            // Selecionar Equipa da Lista
             const selectTeamFromDB = (side, teamId) => {
                 if (teamId === "new") {
                     setMatchInfo(prev => ({
@@ -438,15 +404,12 @@
                 }
             };
             
-            // Atualizar Nome da Equipa na DB
             const handleTeamNameChange = (side, newName) => {
                 setMatchInfo(prev => {
                     const teamId = side === 'A' ? prev.teamAId : prev.teamBId;
                     if (teamId) {
                         setTeamDatabase(db => db.map(t => t.id === teamId ? { ...t, name: newName } : t));
                     } else if (newName.trim() !== "") {
-                        // Se não tem ID mas tem nome, criar nova entrada na DB
-                         // (Lógica simples: criar nova se não existe ID, para suportar "criar nova")
                          const newId = Date.now() + (side === 'A' ? 0 : 1);
                          setTeamDatabase(db => [...db, { id: newId, name: newName, players: [] }]);
                          return { ...prev, [side==='A'?'teamAId':'teamBId']: newId, [side==='A'?'teamA':'teamB']: newName };
@@ -455,7 +418,6 @@
                 });
             };
 
-            // Exports XML
             const exportXML = () => {
                 let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<analise>\n';
                 clips.forEach(c => {
@@ -532,7 +494,7 @@
                     )
                 ),
 
-                // Modal de Configuração de Jogo (Atualizado com Import/Export e Posição)
+                // Modal de Configuração de Jogo
                 isConfigModalOpen && React.createElement('div', { className: "fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" },
                     React.createElement('div', { className: "bg-slate-900 w-full max-w-4xl rounded-2xl flex flex-col max-h-[90vh] overflow-hidden" },
                         React.createElement('div', { className: "p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50" },
@@ -563,7 +525,6 @@
                                     React.createElement('input', { placeholder: "#", className: "w-12 bg-slate-800 p-2 rounded text-center text-sm", value: tempPlayerA.num, onChange: e => setTempPlayerA({...tempPlayerA, num: e.target.value}) }),
                                     React.createElement('input', { placeholder: "Nome", className: "flex-1 bg-slate-800 p-2 rounded text-sm", value: tempPlayerA.name, onChange: e => setTempPlayerA({...tempPlayerA, name: e.target.value}) }),
                                     
-                                    // Seleção de Posição (Dropdown)
                                     React.createElement('select', { 
                                         className: "w-24 bg-slate-800 p-2 rounded text-sm text-slate-300", 
                                         value: tempPlayerA.pos, 
@@ -600,7 +561,6 @@
                                     React.createElement('input', { placeholder: "#", className: "w-12 bg-slate-800 p-2 rounded text-center text-sm", value: tempPlayerB.num, onChange: e => setTempPlayerB({...tempPlayerB, num: e.target.value}) }),
                                     React.createElement('input', { placeholder: "Nome", className: "flex-1 bg-slate-800 p-2 rounded text-sm", value: tempPlayerB.name, onChange: e => setTempPlayerB({...tempPlayerB, name: e.target.value}) }),
                                     
-                                    // Seleção de Posição (Dropdown)
                                     React.createElement('select', { 
                                         className: "w-24 bg-slate-800 p-2 rounded text-sm text-slate-300", 
                                         value: tempPlayerB.pos, 
@@ -626,7 +586,7 @@
                     )
                 ),
 
-                // --- MODAL DE TAGGING RENOVADO (Com Campo 2D e Categorias Separadas) ---
+                // --- MODAL DE TAGGING ---
                 isModalOpen && React.createElement('div', { className: "fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" },
                     React.createElement('div', { className: "bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[95vh]" },
                         React.createElement('div', { className: "p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50" },
@@ -652,24 +612,26 @@
                                 // Coluna Esquerda: Tags
                                 React.createElement('div', { className: "space-y-4" },
                                     
-                                    // Separado: Posição de Jogador (Nova)
                                     React.createElement('div', null,
                                         React.createElement('h4', { className: "text-[10px] font-bold text-orange-500 uppercase mb-2" }, "Posição de Jogador"),
                                         React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Posição"].map(t => React.createElement(TagButton, { key: t, label: t, color: "orange", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
                                     ),
 
                                     React.createElement('div', null,
-                                        React.createElement('h4', { className: "text-[10px] font-bold text-green-500 uppercase mb-2" }, "Remate"),
-                                        React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Remate"].map(t => React.createElement(TagButton, { key: t, label: t, color: "green", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
+                                        React.createElement('h4', { className: "text-[10px] font-bold text-green-500 uppercase mb-2" }, "Resultado"),
+                                        React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Resultado"].map(t => React.createElement(TagButton, { key: t, label: t, color: "green", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
+                                    ),
+
+                                    React.createElement('div', null,
+                                        React.createElement('h4', { className: "text-[10px] font-bold text-rose-500 uppercase mb-2" }, "Turn Over"),
+                                        React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Turn Over"].map(t => React.createElement(TagButton, { key: t, label: t, color: "rose", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
                                     ),
                                     
-                                    // Separado: Fase
                                     React.createElement('div', null,
                                         React.createElement('h4', { className: "text-[10px] font-bold text-blue-500 uppercase mb-2" }, "Fase"),
                                         React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Fase"].map(t => React.createElement(TagButton, { key: t, label: t, color: "blue", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
                                     ),
                                     
-                                    // Separado: Situação
                                     React.createElement('div', null,
                                         React.createElement('h4', { className: "text-[10px] font-bold text-slate-500 uppercase mb-2" }, "Situação"),
                                         React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Situação"].map(t => React.createElement(TagButton, { key: t, label: t, color: "slate", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
@@ -678,7 +640,6 @@
                                     React.createElement('div', null,
                                         React.createElement('h4', { className: "text-[10px] font-bold text-yellow-500 uppercase mb-2" }, "Zona"),
                                         React.createElement('div', { className: "flex flex-wrap gap-2" }, zones.map(t => React.createElement(TagButton, { key: t, label: t, color: "yellow", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true }))),
-                                        // Conditional sub-options
                                         currentTags.some(t => specialZones.includes(t)) && React.createElement('div', { className: "mt-2 flex flex-wrap gap-2 animate-in fade-in" },
                                             zoneDetails.map(t => React.createElement(TagButton, { key: t, label: t, color: "yellow", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true }))
                                         )
@@ -686,11 +647,10 @@
                                     React.createElement('div', null,
                                         React.createElement('div', { className: "flex justify-between items-center mb-2" },
                                             React.createElement('h4', { className: "text-[10px] font-bold text-purple-400 uppercase" }, "Combinações"),
-                                            // Importar e Exportar Combinações
                                             React.createElement('div', { className: "flex gap-2" },
                                                 React.createElement('input', { type: "file", className: "hidden", ref: comboInputRef, onChange: handleComboImport, accept: ".json" }),
-                                                React.createElement('button', { onClick: () => comboInputRef.current.click(), title: "Importar Combinações", className: "text-slate-400 hover:text-white" }, React.createElement(FileUp, { size: 14 })),
-                                                React.createElement('button', { onClick: exportCombinations, title: "Exportar Combinações", className: "text-slate-400 hover:text-white" }, React.createElement(FileDown, { size: 14 }))
+                                                React.createElement('button', { onClick: () => comboInputRef.current.click(), title: "Importar Combinações", className: "text-slate-400 hover:text-white" }, React.createElement(FolderInput, { size: 14 })),
+                                                React.createElement('button', { onClick: exportCombinations, title: "Exportar Combinações", className: "text-slate-400 hover:text-white" }, React.createElement(Download, { size: 14 }))
                                             )
                                         ),
                                         React.createElement('div', { className: "flex gap-2 mb-2" },
@@ -700,14 +660,10 @@
                                         React.createElement('div', { className: "flex flex-wrap gap-2" }, combinations.map(t => React.createElement(TagButton, { key: t, label: t, color: "purple", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
                                     )
                                 ),
-                                // Coluna Direita: Mapa Visual
                                 React.createElement('div', { className: "space-y-4" },
                                     React.createElement('div', null,
                                         React.createElement('h4', { className: "text-[10px] font-bold text-yellow-500 uppercase mb-2 flex items-center gap-2" }, React.createElement(MapPin, { size: 12 }), "Zona de Finalização"),
-                                        // O CAMPO 2D AQUI
                                         React.createElement(HandballCourt, { selectedZones: currentTags, onToggleZone: toggleTag }),
-                                        
-                                        // Detalhe de Zona (condicional)
                                         currentTags.some(t => specialZones.includes(t)) && React.createElement('div', { className: "mt-2 bg-yellow-900/10 p-2 rounded border border-yellow-800/30 flex gap-2 justify-center animate-in fade-in" },
                                             zoneDetails.map(t => React.createElement(TagButton, { key: t, label: t, color: "yellow", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true }))
                                         )
@@ -719,6 +675,96 @@
                         React.createElement('div', { className: "p-4 bg-slate-800/50 border-t border-slate-800 flex justify-end gap-2" },
                             React.createElement('button', { onClick: closeModal, className: "px-4 py-2 rounded text-sm text-slate-400 hover:bg-slate-800" }, "Cancelar"),
                             React.createElement('button', { onClick: saveClip, className: "px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold shadow-lg" }, "Guardar")
+                        )
+                    )
+                ),
+
+                // Header
+                React.createElement('header', { className: "h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900" },
+                    React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement(Scissors, { className: "text-blue-500 w-6 h-6" }),
+                        React.createElement('h1', { className: "text-xl font-bold tracking-tight" }, "ScoutMaster ", React.createElement('span', { className: "text-blue-500" }, "Pro"))
+                    ),
+                    React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement('button', { onClick: () => setShowStatsModal(true), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 mr-2 text-purple-400" }, React.createElement(BarChart2, { size: 16 }), "Estatísticas"),
+                        React.createElement('div', { className: "h-6 w-px bg-slate-800 mx-2" }),
+                        React.createElement('button', { onClick: () => setIsConfigModalOpen(true), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700" }, React.createElement(Settings, { size: 16 }), "Equipas"),
+                        React.createElement('input', { type: "file", accept: "video/*", onChange: handleFileUpload, ref: fileInputRef, className: "hidden" }),
+                        React.createElement('button', { onClick: () => fileInputRef.current.click(), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 ml-2" }, React.createElement(Upload, { size: 16 }), "Vídeo"),
+                        React.createElement('button', { onClick: exportXML, className: "flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium text-white transition-colors shadow-lg ml-2" }, React.createElement(Download, { size: 16 }), "XML")
+                    )
+                ),
+
+                // Layout Principal
+                React.createElement('div', { className: "flex flex-1 overflow-hidden" },
+                    // Esquerda: Vídeo
+                    React.createElement('div', { className: "flex-1 flex flex-col p-4 gap-4 relative" },
+                        React.createElement('div', { className: "flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative flex items-center justify-center border border-slate-800 group" },
+                            videoSrc ? React.createElement('video', { ref: videoRef, src: videoSrc, className: "w-full h-full object-contain", onClick: togglePlay, onTimeUpdate: () => setCurrentTime(videoRef.current.currentTime), onLoadedMetadata: () => setDuration(videoRef.current.duration) }) : React.createElement('div', { className: "text-slate-500" }, "Carregue um vídeo"),
+                            inPoint !== null && React.createElement('div', { className: "absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1 rounded text-xs font-bold" }, `IN: ${formatTime(inPoint)}`)
+                        ),
+                        React.createElement('div', { className: "h-24 bg-slate-900 rounded-xl border border-slate-800 p-4 flex flex-col gap-2" },
+                            React.createElement('input', { type: "range", min: "0", max: duration || 100, value: currentTime, onChange: (e) => { const t = parseFloat(e.target.value); setCurrentTime(t); if(videoRef.current) videoRef.current.currentTime = t; }, className: "w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" }),
+                            React.createElement('div', { className: "flex items-center justify-between mt-1" },
+                                React.createElement('div', { className: "flex items-center gap-4" },
+                                    React.createElement('button', { onClick: togglePlay, className: "p-2 bg-slate-800 hover:bg-slate-700 rounded-full" }, isPlaying ? React.createElement(Pause, { size: 20 }) : React.createElement(Play, { size: 20 })),
+                                    React.createElement('span', { className: "text-sm font-mono text-slate-300" }, `${formatTime(currentTime)} / ${formatTime(duration)}`)
+                                ),
+                                React.createElement('div', { className: "flex items-center gap-2 bg-slate-800 rounded-lg p-1" },
+                                    React.createElement('button', { onClick: () => setActiveTeam('A'), className: `px-3 py-1 text-xs font-bold rounded ${activeTeam==='A'?'bg-blue-600 text-white':'text-slate-400'}` }, `[A] ${matchInfo.teamA}`),
+                                    React.createElement('button', { onClick: () => setActiveTeam('B'), className: `px-3 py-1 text-xs font-bold rounded ${activeTeam==='B'?'bg-red-600 text-white':'text-slate-400'}` }, `[S] ${matchInfo.teamB}`)
+                                ),
+                                React.createElement('div', { className: "flex gap-2" },
+                                    React.createElement('button', { onClick: setIn, className: `px-4 py-1.5 rounded font-bold text-xs ${inPoint!==null?'bg-green-600 text-white':'bg-slate-800 text-slate-400'}` }, "Z: INÍCIO"),
+                                    React.createElement('button', { onClick: setOutAndOpenModal, className: "px-4 py-1.5 bg-red-600 text-white rounded font-bold text-xs" }, "X: FIM")
+                                )
+                            )
+                        )
+                    ),
+                    
+                    // Direita: Lista de Cortes + Filtros
+                    React.createElement('div', { className: "w-80 bg-slate-900 border-l border-slate-800 flex flex-col" },
+                        React.createElement('div', { className: "p-4 border-b border-slate-800 bg-slate-900 z-10 space-y-3" },
+                            React.createElement('div', { className: "flex justify-between items-center" },
+                                React.createElement('h2', { className: "font-bold flex items-center gap-2" }, React.createElement(Tag, { size: 16, className: "text-blue-500" }), `Cortes (${filteredClips.length})`),
+                                React.createElement('button', { onClick: () => setShowFilters(!showFilters), className: `p-1.5 rounded ${showFilters ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}` }, React.createElement(Filter, { size: 16 }))
+                            ),
+                            showFilters && React.createElement('div', { className: "bg-slate-800 p-3 rounded-lg text-xs space-y-2 animate-in slide-in-from-top-2" },
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: "block text-slate-400 mb-1" }, "Equipa"),
+                                    React.createElement('select', { value: filters.team, onChange: e => setFilters({...filters, team: e.target.value}), className: "w-full bg-slate-900 border border-slate-700 rounded p-1" },
+                                        React.createElement('option', { value: "all" }, "Todas"),
+                                        React.createElement('option', { value: "A" }, matchInfo.teamA),
+                                        React.createElement('option', { value: "B" }, matchInfo.teamB)
+                                    )
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: "block text-slate-400 mb-1" }, "Etiqueta"),
+                                    React.createElement('select', { value: filters.tag, onChange: e => setFilters({...filters, tag: e.target.value}), className: "w-full bg-slate-900 border border-slate-700 rounded p-1" },
+                                        React.createElement('option', { value: "all" }, "Todas"),
+                                        Object.values(staticCategories).flat().map(t => React.createElement('option', { key: t, value: t }, t))
+                                    )
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: "block text-slate-400 mb-1" }, "Jogador"),
+                                    React.createElement('select', { value: filters.player, onChange: e => setFilters({...filters, player: e.target.value}), className: "w-full bg-slate-900 border border-slate-700 rounded p-1" },
+                                        React.createElement('option', { value: "all" }, "Todos"),
+                                        [...matchInfo.playersA, ...matchInfo.playersB].map(p => React.createElement('option', { key: p.id, value: p.id }, `${p.number} - ${p.name}`))
+                                    )
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: "flex-1 overflow-y-auto p-3 space-y-3" },
+                            filteredClips.length === 0 ? React.createElement('div', { className: "text-center mt-10 p-6 opacity-40 text-xs" }, "Nenhum corte encontrado.") : filteredClips.map(clip => React.createElement('div', { key: clip.id, className: "bg-slate-800 rounded-lg p-3 border border-slate-700 relative overflow-hidden" },
+                                React.createElement('div', { className: `absolute left-0 top-0 bottom-0 w-1 ${clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'}` }),
+                                React.createElement('div', { className: "flex justify-between mb-1 pl-2" },
+                                    React.createElement('span', { className: "text-xs font-mono text-slate-400" }, `${formatTime(clip.start)} - ${formatTime(clip.end)}`),
+                                    React.createElement('button', { onClick: () => deleteClip(clip.id) }, React.createElement(Trash2, { size: 12, className: "text-slate-600 hover:text-red-500" }))
+                                ),
+                                React.createElement('div', { className: "flex flex-wrap gap-1 pl-2 mb-1" }, clip.tags.map(t => React.createElement('span', { key: t, className: "text-[9px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700 text-slate-300" }, t))),
+                                clip.players.length > 0 && React.createElement('div', { className: "flex flex-wrap gap-1 pl-2 mb-1" }, clip.players.map(p => React.createElement('span', { key: p.id, className: "text-[9px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-200" }, `#${p.number} ${p.name.split(' ')[0]}`))),
+                                React.createElement('button', { onClick: () => jumpToClip(clip.start), className: "w-full mt-2 text-[10px] bg-slate-700 py-1 rounded hover:bg-slate-600 flex justify-center items-center gap-1" }, React.createElement(RotateCcw, { size: 10 }), "Rever")
+                            ))
                         )
                     )
                 )
