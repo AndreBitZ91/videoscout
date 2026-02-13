@@ -40,7 +40,7 @@
             Trash2, Tag, ChevronRight, Save, X, RotateCcw, 
             FolderInput, Plus, MinusCircle, FileSpreadsheet,
             CheckSquare, Square, Film, Loader2, Clapperboard, MonitorPlay,
-            Settings, UserPlus, Users, Shirt
+            Settings, UserPlus, Users, Shirt, Shield, Swords
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- Utilitários ---
@@ -115,6 +115,7 @@
                 playersA: [], // { id, number, name }
                 playersB: []
             });
+            const [activeTeam, setActiveTeam] = useState('A'); // 'A' ou 'B'
             const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
             // Inputs temporários para adicionar jogador
@@ -201,9 +202,10 @@
                 let m3uContent = "#EXTM3U\n";
                 
                 clipsToExport.forEach((clip, index) => {
+                    const teamName = clip.team === 'A' ? matchInfo.teamA : matchInfo.teamB;
                     // Título rico com jogadores
                     const playerNames = clip.players ? clip.players.map(p => `#${p.number} ${p.name}`).join(', ') : '';
-                    const title = `${index + 1}. ${clip.tags.join(', ')} ${playerNames ? '[' + playerNames + ']' : ''} (${clip.comment || ''})`;
+                    const title = `${index + 1}. [${teamName}] ${clip.tags.join(', ')} ${playerNames ? '[' + playerNames + ']' : ''} (${clip.comment || ''})`;
                     
                     m3uContent += `#EXTINF:${Math.round(clip.duration)},${title}\n`;
                     m3uContent += `#EXTVLCOPT:start-time=${clip.start.toFixed(3)}\n`;
@@ -357,19 +359,15 @@
                         const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
                         const cortes = xmlDoc.getElementsByTagName("corte");
                         
-                        // Parse das equipas se existirem
                         const meta = xmlDoc.getElementsByTagName("metadata")[0];
                         if (meta) {
                             const tA = meta.getElementsByTagName("teamA")[0];
                             const tB = meta.getElementsByTagName("teamB")[0];
-                            // Aqui poderíamos carregar os jogadores também, mas para simplificar vamos manter o foco nos clips
-                            // ou carregar estado básico
                         }
 
                         const loadedClips = Array.from(cortes).map(corte => {
                             const tagsText = corte.getElementsByTagName("etiquetas")[0]?.textContent || "";
                             
-                            // Parse Jogadores do XML
                             const jogadoresNode = corte.getElementsByTagName("jogadores")[0];
                             let players = [];
                             if (jogadoresNode) {
@@ -387,6 +385,7 @@
                                 duration: parseFloat(corte.getElementsByTagName("duracao")[0]?.textContent || 0),
                                 tags: tagsText ? tagsText.split(',').map(t => t.trim()) : [],
                                 players: players,
+                                team: corte.getElementsByTagName("equipa")[0]?.textContent === matchInfo.teamB ? 'B' : 'A', // Tenta adivinhar equipa
                                 comment: corte.getElementsByTagName("comentario")[0]?.textContent || ""
                             };
                         });
@@ -420,6 +419,8 @@
                         case ' ': e.preventDefault(); togglePlay(); break;
                         case 'z': setIn(); break;
                         case 'x': setOutAndOpenModal(); break;
+                        case 'a': setActiveTeam('A'); break; // Ativa equipa A
+                        case 's': setActiveTeam('B'); break; // Ativa equipa B
                         case 'arrowleft': if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 3); break;
                         case 'arrowright': if(videoRef.current) videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 3); break;
                     }
@@ -461,6 +462,7 @@
                     duration: outPoint - inPoint,
                     tags: currentTags,
                     players: selectedPlayers,
+                    team: activeTeam, // Guarda a equipa ativa no clip
                     comment: comment
                 }]);
                 closeModal();
@@ -495,7 +497,8 @@
                 xmlContent += `  <metadata>\n    <teamA>${matchInfo.teamA}</teamA>\n    <teamB>${matchInfo.teamB}</teamB>\n  </metadata>\n`;
                 
                 clips.forEach(clip => {
-                    xmlContent += `  <corte id="${clip.id}">\n    <inicio>${clip.start.toFixed(3)}</inicio>\n    <fim>${clip.end.toFixed(3)}</fim>\n    <duracao>${clip.duration.toFixed(3)}</duracao>\n    <etiquetas>${clip.tags.join(',')}</etiquetas>\n`;
+                    const teamName = clip.team === 'A' ? matchInfo.teamA : matchInfo.teamB;
+                    xmlContent += `  <corte id="${clip.id}">\n    <inicio>${clip.start.toFixed(3)}</inicio>\n    <fim>${clip.end.toFixed(3)}</fim>\n    <duracao>${clip.duration.toFixed(3)}</duracao>\n    <equipa>${teamName}</equipa>\n    <etiquetas>${clip.tags.join(',')}</etiquetas>\n`;
                     // Adicionar Jogadores
                     if (clip.players && clip.players.length > 0) {
                         xmlContent += `    <jogadores>\n`;
@@ -666,6 +669,18 @@
                                     React.createElement('span', { className: "text-sm font-mono text-slate-300" }, `${formatTime(currentTime)} / ${formatTime(duration)}`),
                                     React.createElement('span', { className: "text-xs text-slate-500 ml-2 hidden lg:inline-block" }, "(Espaço: Play/Pause | ←/→ : -3s/+3s)")
                                 ),
+                                // Indicador de Equipa Ativa e Atalhos
+                                React.createElement('div', { className: "flex items-center gap-2 bg-slate-800 rounded-lg p-1 mx-4" },
+                                    React.createElement('button', { 
+                                        onClick: () => setActiveTeam('A'),
+                                        className: `px-3 py-1 text-xs font-bold rounded flex items-center gap-1 transition-all ${activeTeam === 'A' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`
+                                    }, "[A] " + matchInfo.teamA),
+                                    React.createElement('button', { 
+                                        onClick: () => setActiveTeam('B'),
+                                        className: `px-3 py-1 text-xs font-bold rounded flex items-center gap-1 transition-all ${activeTeam === 'B' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`
+                                    }, "[S] " + matchInfo.teamB)
+                                ),
+
                                 React.createElement('div', { className: "flex items-center gap-3" },
                                     React.createElement('div', { className: "flex flex-col items-center" },
                                         React.createElement('span', { className: "text-[10px] uppercase text-slate-500 font-bold mb-1" }, "Tecla 'Z'"),
@@ -700,8 +715,11 @@
                                 React.createElement(Scissors, { size: 48, className: "mx-auto mb-4" }),
                                 React.createElement('p', { className: "text-sm" }, "Ainda não há cortes."),
                                 React.createElement('p', { className: "text-xs mt-1" }, "Use 'Z' para início e 'X' para fim.")
-                            ) : clips.map(clip => React.createElement('div', { key: clip.id, className: `bg-slate-800 rounded-lg p-3 border transition-all ${selectedClips.includes(clip.id) ? 'border-blue-500 bg-slate-800/80' : 'border-slate-700 hover:border-slate-600'} group` },
-                                React.createElement('div', { className: "flex justify-between items-start mb-2" },
+                            ) : clips.map(clip => React.createElement('div', { key: clip.id, className: `bg-slate-800 rounded-lg p-3 border transition-all ${selectedClips.includes(clip.id) ? 'border-blue-500 bg-slate-800/80' : 'border-slate-700 hover:border-slate-600'} group relative overflow-hidden` },
+                                // Indicador lateral da equipa
+                                React.createElement('div', { className: `absolute left-0 top-0 bottom-0 w-1 ${clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'}` }),
+                                
+                                React.createElement('div', { className: "flex justify-between items-start mb-2 pl-2" },
                                     React.createElement('div', { className: "flex items-center gap-2" },
                                         React.createElement('button', { onClick: () => toggleClipSelection(clip.id), className: "text-slate-400 hover:text-blue-400" }, 
                                             selectedClips.includes(clip.id) ? React.createElement(CheckSquare, { size: 18, className: "text-blue-500" }) : React.createElement(Square, { size: 18 })
@@ -730,7 +748,13 @@
                     React.createElement('div', { className: "bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]" },
                         React.createElement('div', { className: "p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50" },
                             React.createElement('div', null,
-                                React.createElement('h3', { className: "text-xl font-bold text-white" }, "Classificar Lance"),
+                                React.createElement('h3', { className: "text-xl font-bold text-white flex items-center gap-2" }, 
+                                    "Classificar Lance",
+                                    // Badge da equipa ativa no modal
+                                    React.createElement('span', { 
+                                        className: `text-xs px-2 py-1 rounded border ${activeTeam === 'A' ? 'bg-blue-900/50 border-blue-500 text-blue-300' : 'bg-red-900/50 border-red-500 text-red-300'}`
+                                    }, activeTeam === 'A' ? matchInfo.teamA : matchInfo.teamB)
+                                ),
                                 React.createElement('p', { className: "text-sm text-slate-400 font-mono mt-1" }, "Intervalo: ", React.createElement('span', { className: "text-blue-400" }, formatTime(inPoint)), " a ", React.createElement('span', { className: "text-blue-400" }, formatTime(outPoint)))
                             ),
                             React.createElement('button', { onClick: closeModal, className: "p-2 hover:bg-slate-700 rounded-full" }, React.createElement(X, { size: 24 }))
@@ -745,7 +769,7 @@
                                     ),
                                     React.createElement('div', { className: "grid grid-cols-2 gap-4" },
                                         // Jogadores Equipa A
-                                        matchInfo.playersA.length > 0 && React.createElement('div', null,
+                                        matchInfo.playersA.length > 0 && React.createElement('div', { className: activeTeam !== 'A' ? 'opacity-50 grayscale' : '' },
                                             React.createElement('div', { className: "text-xs font-bold text-blue-400 mb-2" }, matchInfo.teamA),
                                             React.createElement('div', { className: "flex flex-wrap gap-2" },
                                                 matchInfo.playersA.map(p => React.createElement(TagButton, {
@@ -758,7 +782,7 @@
                                             )
                                         ),
                                         // Jogadores Equipa B
-                                        matchInfo.playersB.length > 0 && React.createElement('div', null,
+                                        matchInfo.playersB.length > 0 && React.createElement('div', { className: activeTeam !== 'B' ? 'opacity-50 grayscale' : '' },
                                             React.createElement('div', { className: "text-xs font-bold text-red-400 mb-2" }, matchInfo.teamB),
                                             React.createElement('div', { className: "flex flex-wrap gap-2" },
                                                 matchInfo.playersB.map(p => React.createElement(TagButton, {
