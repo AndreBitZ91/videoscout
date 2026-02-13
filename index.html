@@ -39,7 +39,7 @@
             Play, Pause, Scissors, Download, Upload, 
             Trash2, Tag, ChevronRight, Save, X, RotateCcw, 
             FolderInput, Plus, MinusCircle, FileSpreadsheet,
-            CheckSquare, Square, Film, Loader2
+            CheckSquare, Square, Film, Loader2, Clapperboard, MonitorPlay
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- Utilitários ---
@@ -91,6 +91,7 @@
         function App() {
             // --- Estados ---
             const [videoSrc, setVideoSrc] = useState(null);
+            const [videoFileName, setVideoFileName] = useState(""); // Novo: Guardar nome do ficheiro
             const [currentTime, setCurrentTime] = useState(0);
             const [duration, setDuration] = useState(0);
             const [isPlaying, setIsPlaying] = useState(false);
@@ -101,7 +102,7 @@
             
             // Dados
             const [clips, setClips] = useState([]);
-            const [selectedClips, setSelectedClips] = useState([]); // IDs dos clips selecionados
+            const [selectedClips, setSelectedClips] = useState([]);
             
             // Estados de Processamento de Vídeo
             const [isProcessing, setIsProcessing] = useState(false);
@@ -146,10 +147,54 @@
                 }
             }, [isModalOpen]);
 
-            // --- Lógica de Exportação de Vídeo (Highlight Reel) ---
+            // --- Lógica de Exportação VLC (M3U) ---
+            const exportVLCPlaylist = () => {
+                if (selectedClips.length === 0) return;
+                
+                const clipsToExport = clips.filter(c => selectedClips.includes(c.id)).sort((a, b) => a.start - b.start);
+                
+                // Cabeçalho M3U
+                let m3uContent = "#EXTM3U\n";
+                
+                clipsToExport.forEach((clip, index) => {
+                    // Título do clip para o VLC
+                    const title = `${index + 1}. ${clip.tags.join(', ') || 'Lance'} (${clip.comment || ''})`;
+                    
+                    m3uContent += `#EXTINF:${Math.round(clip.duration)},${title}\n`;
+                    // Comandos VLC para inicio e fim (em segundos)
+                    m3uContent += `#EXTVLCOPT:start-time=${clip.start.toFixed(3)}\n`;
+                    m3uContent += `#EXTVLCOPT:stop-time=${clip.end.toFixed(3)}\n`;
+                    // Nome do ficheiro de vídeo original (deve estar na mesma pasta)
+                    m3uContent += `${videoFileName}\n`;
+                });
+
+                const blob = new Blob([m3uContent], { type: 'audio/x-mpegurl' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Highlights_VLC_${new Date().toISOString().slice(0,10)}.m3u`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                alert("Playlist VLC criada!\n\nINSTRUÇÕES:\n1. Coloque o ficheiro .m3u descarregado NA MESMA PASTA do vídeo original.\n2. Abra o ficheiro .m3u com o VLC.\n3. O VLC vai reproduzir apenas os cortes selecionados.");
+            };
+
+            // --- Lógica de Exportação de Vídeo (Browser Recording) ---
+            const getSupportedMimeType = () => {
+                const types = [
+                    'video/webm;codecs=vp9',
+                    'video/webm;codecs=vp8',
+                    'video/webm;codecs=h264',
+                    'video/webm',
+                    'video/mp4'
+                ];
+                return types.find(type => MediaRecorder.isTypeSupported(type));
+            };
+
             const processNextClip = useCallback(() => {
                 if (processingQueueRef.current.length === 0) {
-                    // Fim do processo
                     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
                         recorderRef.current.stop();
                     }
@@ -161,7 +206,6 @@
                 
                 if (videoRef.current) {
                     videoRef.current.currentTime = currentClip.start;
-                    // Pequeno delay para garantir seek antes de play
                     setTimeout(() => {
                         videoRef.current.play().then(() => {
                             if (recorderRef.current.state === 'paused') {
@@ -172,7 +216,6 @@
                 }
             }, []);
 
-            // Monitor de tempo durante o processamento
             useEffect(() => {
                 if (!isProcessing || processingQueueRef.current.length === 0) return;
 
@@ -183,21 +226,27 @@
                     if (videoRef.current.currentTime >= currentClip.end) {
                         videoRef.current.pause();
                         recorderRef.current.pause();
-                        processingQueueRef.current.shift(); // Remove clip processado
+                        processingQueueRef.current.shift(); 
                         processNextClip();
                     }
                 };
 
-                const interval = setInterval(checkTime, 100); // Check a cada 100ms
+                const interval = setInterval(checkTime, 100);
                 return () => clearInterval(interval);
             }, [isProcessing, processNextClip]);
 
             const startVideoExport = async () => {
                 if (selectedClips.length === 0) return;
                 
-                // Filtrar os clips completos baseados nos IDs selecionados
                 const clipsToExport = clips.filter(c => selectedClips.includes(c.id)).sort((a, b) => a.start - b.start);
                 if (clipsToExport.length === 0) return;
+
+                // Tentar encontrar um formato suportado
+                const mimeType = getSupportedMimeType();
+                if (!mimeType) {
+                    alert("O seu browser não suporta gravação de vídeo. Por favor utilize a opção 'Playlist VLC'.");
+                    return;
+                }
 
                 if (!confirm(`Vai exportar ${clipsToExport.length} lances num único vídeo.\n\nO vídeo será reproduzido no ecrã para gravação.\nPor favor não mude de aba durante o processo.`)) return;
 
@@ -207,14 +256,8 @@
                 chunksRef.current = [];
 
                 try {
-                    // Captura o stream do elemento de vídeo
-                    // Tenta capturar a 30fps
                     const stream = videoRef.current.captureStream(30); 
-                    const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-                        ? { mimeType: 'video/webm;codecs=vp9' } 
-                        : { mimeType: 'video/webm' };
-                    
-                    const recorder = new MediaRecorder(stream, options);
+                    const recorder = new MediaRecorder(stream, { mimeType });
                     recorderRef.current = recorder;
 
                     recorder.ondataavailable = (e) => {
@@ -226,24 +269,24 @@
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `Highlights_${new Date().getTime()}.webm`;
+                        a.download = `Highlights_Browser_${new Date().getTime()}.webm`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
                         
                         setIsProcessing(false);
                         setProcessingStatus("");
-                        alert("Vídeo exportado com sucesso!");
+                        alert("Vídeo exportado com sucesso! (Formato WebM)");
                     };
 
                     recorder.start();
-                    recorder.pause(); // Pausa imediatamente, só grava quando reproduzir o clip
+                    recorder.pause();
                     
                     processNextClip();
 
                 } catch (err) {
                     console.error(err);
-                    alert("Erro ao iniciar gravação. O seu browser pode não suportar esta funcionalidade (tente Chrome/Edge no PC).");
+                    alert(`Erro técnico: ${err.message}. Tente a opção VLC.`);
                     setIsProcessing(false);
                 }
             };
@@ -284,6 +327,7 @@
                 if (file) {
                     const url = URL.createObjectURL(file);
                     setVideoSrc(url);
+                    setVideoFileName(file.name); // Guardar nome para o VLC
                     setInPoint(null);
                     setOutPoint(null);
                     setSelectedClips([]);
@@ -508,10 +552,16 @@
                     React.createElement('div', { className: "w-80 bg-slate-900 border-l border-slate-800 flex flex-col" },
                         React.createElement('div', { className: "p-4 border-b border-slate-800 bg-slate-900 z-10 space-y-3" },
                             React.createElement('h2', { className: "font-bold flex items-center gap-2" }, React.createElement(Tag, { size: 16, className: "text-blue-500" }), `Lista de Cortes (${clips.length})`),
-                            selectedClips.length > 0 && React.createElement('button', { 
-                                onClick: startVideoExport,
-                                className: "w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold transition-all recording-indicator" 
-                            }, React.createElement(Film, { size: 16 }), `Exportar ${selectedClips.length} Vídeo(s)`)
+                            selectedClips.length > 0 && React.createElement('div', { className: "grid grid-cols-2 gap-2" },
+                                React.createElement('button', { 
+                                    onClick: startVideoExport,
+                                    className: "flex items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-xs font-bold transition-all recording-indicator" 
+                                }, React.createElement(Film, { size: 14 }), `Gravar Ecrã`),
+                                React.createElement('button', { 
+                                    onClick: exportVLCPlaylist,
+                                    className: "flex items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg text-xs font-bold transition-all" 
+                                }, React.createElement(Clapperboard, { size: 14 }), `Playlist VLC`)
+                            )
                         ),
                         React.createElement('div', { className: "flex-1 overflow-y-auto p-3 space-y-3" },
                             clips.length === 0 ? React.createElement('div', { className: "text-center mt-10 p-6 opacity-40" },
