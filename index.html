@@ -16,6 +16,16 @@
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        /* Animação de gravação */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .recording-indicator {
+            animation: pulse-red 2s infinite;
+        }
     </style>
 </head>
 <body>
@@ -28,7 +38,8 @@
         import { 
             Play, Pause, Scissors, Download, Upload, 
             Trash2, Tag, ChevronRight, Save, X, RotateCcw, 
-            FolderInput, Plus, MinusCircle, FileSpreadsheet 
+            FolderInput, Plus, MinusCircle, FileSpreadsheet,
+            CheckSquare, Square, Film, Loader2
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- Utilitários ---
@@ -90,7 +101,15 @@
             
             // Dados
             const [clips, setClips] = useState([]);
+            const [selectedClips, setSelectedClips] = useState([]); // IDs dos clips selecionados
             
+            // Estados de Processamento de Vídeo
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [processingStatus, setProcessingStatus] = useState("");
+            const recorderRef = useRef(null);
+            const chunksRef = useRef([]);
+            const processingQueueRef = useRef([]);
+
             // Categorias
             const [tagCategories, setTagCategories] = useState({
                 "Ataque": ["Golo", "Remate", "Canto a Favor", "Cruzamento"],
@@ -127,7 +146,109 @@
                 }
             }, [isModalOpen]);
 
-            // --- Handlers ---
+            // --- Lógica de Exportação de Vídeo (Highlight Reel) ---
+            const processNextClip = useCallback(() => {
+                if (processingQueueRef.current.length === 0) {
+                    // Fim do processo
+                    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+                        recorderRef.current.stop();
+                    }
+                    return;
+                }
+
+                const currentClip = processingQueueRef.current[0];
+                setProcessingStatus(`A gravar: ${formatTime(currentClip.start)} - ${formatTime(currentClip.end)}...`);
+                
+                if (videoRef.current) {
+                    videoRef.current.currentTime = currentClip.start;
+                    // Pequeno delay para garantir seek antes de play
+                    setTimeout(() => {
+                        videoRef.current.play().then(() => {
+                            if (recorderRef.current.state === 'paused') {
+                                recorderRef.current.resume();
+                            }
+                        }).catch(e => console.error("Erro playback:", e));
+                    }, 200);
+                }
+            }, []);
+
+            // Monitor de tempo durante o processamento
+            useEffect(() => {
+                if (!isProcessing || processingQueueRef.current.length === 0) return;
+
+                const checkTime = () => {
+                    if (!videoRef.current) return;
+                    const currentClip = processingQueueRef.current[0];
+                    
+                    if (videoRef.current.currentTime >= currentClip.end) {
+                        videoRef.current.pause();
+                        recorderRef.current.pause();
+                        processingQueueRef.current.shift(); // Remove clip processado
+                        processNextClip();
+                    }
+                };
+
+                const interval = setInterval(checkTime, 100); // Check a cada 100ms
+                return () => clearInterval(interval);
+            }, [isProcessing, processNextClip]);
+
+            const startVideoExport = async () => {
+                if (selectedClips.length === 0) return;
+                
+                // Filtrar os clips completos baseados nos IDs selecionados
+                const clipsToExport = clips.filter(c => selectedClips.includes(c.id)).sort((a, b) => a.start - b.start);
+                if (clipsToExport.length === 0) return;
+
+                if (!confirm(`Vai exportar ${clipsToExport.length} lances num único vídeo.\n\nO vídeo será reproduzido no ecrã para gravação.\nPor favor não mude de aba durante o processo.`)) return;
+
+                setIsProcessing(true);
+                setProcessingStatus("A preparar gravação...");
+                processingQueueRef.current = [...clipsToExport];
+                chunksRef.current = [];
+
+                try {
+                    // Captura o stream do elemento de vídeo
+                    // Tenta capturar a 30fps
+                    const stream = videoRef.current.captureStream(30); 
+                    const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+                        ? { mimeType: 'video/webm;codecs=vp9' } 
+                        : { mimeType: 'video/webm' };
+                    
+                    const recorder = new MediaRecorder(stream, options);
+                    recorderRef.current = recorder;
+
+                    recorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) chunksRef.current.push(e.data);
+                    };
+
+                    recorder.onstop = () => {
+                        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `Highlights_${new Date().getTime()}.webm`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        setIsProcessing(false);
+                        setProcessingStatus("");
+                        alert("Vídeo exportado com sucesso!");
+                    };
+
+                    recorder.start();
+                    recorder.pause(); // Pausa imediatamente, só grava quando reproduzir o clip
+                    
+                    processNextClip();
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro ao iniciar gravação. O seu browser pode não suportar esta funcionalidade (tente Chrome/Edge no PC).");
+                    setIsProcessing(false);
+                }
+            };
+
+            // --- Handlers Normais ---
             const handleCSVUpload = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -165,6 +286,7 @@
                     setVideoSrc(url);
                     setInPoint(null);
                     setOutPoint(null);
+                    setSelectedClips([]);
                 }
             };
 
@@ -203,7 +325,7 @@
                 }
             };
 
-            const handleTimeUpdate = () => { if (videoRef.current) setCurrentTime(videoRef.current.currentTime); };
+            const handleTimeUpdate = () => { if (videoRef.current && !isProcessing) setCurrentTime(videoRef.current.currentTime); };
             const handleLoadedMetadata = () => { if (videoRef.current) setDuration(videoRef.current.duration); };
 
             const setIn = useCallback(() => { if (videoRef.current) setInPoint(videoRef.current.currentTime); }, []);
@@ -220,7 +342,7 @@
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    if (isModalOpen) return;
+                    if (isModalOpen || isProcessing) return;
                     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
                     switch (e.key.toLowerCase()) {
                         case ' ': e.preventDefault(); togglePlay(); break;
@@ -232,7 +354,7 @@
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration]);
+            }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration, isProcessing]);
 
             const toggleTag = useCallback((tag) => {
                 setCurrentTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -273,14 +395,23 @@
                 setNewTagInput("");
             };
 
-            const deleteClip = (id) => setClips(clips.filter(c => c.id !== id));
+            const deleteClip = (id) => {
+                setClips(clips.filter(c => c.id !== id));
+                setSelectedClips(selectedClips.filter(sid => sid !== id));
+            };
             
             const jumpToClip = (start) => {
-                if (videoRef.current) {
+                if (videoRef.current && !isProcessing) {
                     videoRef.current.currentTime = start;
                     videoRef.current.play();
                     setIsPlaying(true);
                 }
+            };
+
+            const toggleClipSelection = (id) => {
+                setSelectedClips(prev => 
+                    prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+                );
             };
 
             const exportXML = () => {
@@ -301,6 +432,14 @@
             };
 
             return React.createElement('div', { className: "flex flex-col h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden" },
+                // Overlay de Processamento
+                isProcessing && React.createElement('div', { className: "fixed inset-0 bg-black/90 z-[60] flex flex-col items-center justify-center p-8 text-center" },
+                    React.createElement(Loader2, { size: 64, className: "text-red-500 animate-spin mb-4" }),
+                    React.createElement('h2', { className: "text-2xl font-bold text-white mb-2" }, "A Exportar Vídeo..."),
+                    React.createElement('p', { className: "text-slate-300 text-lg animate-pulse" }, processingStatus),
+                    React.createElement('p', { className: "text-slate-500 text-sm mt-8 max-w-md" }, "Não feche nem minimize esta janela. O vídeo está a ser gravado em tempo real.")
+                ),
+
                 // Header
                 React.createElement('header', { className: "h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900" },
                     React.createElement('div', { className: "flex items-center gap-2" },
@@ -319,7 +458,7 @@
                             React.createElement('button', { onClick: () => csvInputRef.current.click(), className: "flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" }, React.createElement(FileSpreadsheet, { size: 16 }), " CSV")
                         ),
                         React.createElement('div', { className: "h-6 w-px bg-slate-800 mx-2" }),
-                        React.createElement('button', { onClick: exportXML, disabled: clips.length === 0, className: `flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${clips.length === 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}` }, React.createElement(Download, { size: 16 }), " Exportar")
+                        React.createElement('button', { onClick: exportXML, disabled: clips.length === 0, className: `flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${clips.length === 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}` }, React.createElement(Download, { size: 16 }), " XML")
                     )
                 ),
                 // Main
@@ -328,7 +467,9 @@
                     React.createElement('div', { className: "flex-1 flex flex-col p-4 gap-4 relative" },
                         React.createElement('div', { className: "flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative flex items-center justify-center border border-slate-800 group" },
                             videoSrc ? React.createElement('video', {
-                                ref: videoRef, src: videoSrc, className: "w-full h-full object-contain",
+                                ref: videoRef, src: videoSrc, 
+                                className: "w-full h-full object-contain",
+                                crossOrigin: "anonymous", // Importante para gravação
                                 onClick: togglePlay, onTimeUpdate: handleTimeUpdate, onLoadedMetadata: handleLoadedMetadata
                             }) : React.createElement('div', { className: "text-center text-slate-500" },
                                 React.createElement(Upload, { className: "w-16 h-16 mx-auto mb-4 opacity-50" }),
@@ -365,23 +506,32 @@
                     ),
                     // Right Sidebar
                     React.createElement('div', { className: "w-80 bg-slate-900 border-l border-slate-800 flex flex-col" },
-                        React.createElement('div', { className: "p-4 border-b border-slate-800 bg-slate-900 z-10" },
-                            React.createElement('h2', { className: "font-bold flex items-center gap-2" }, React.createElement(Tag, { size: 16, className: "text-blue-500" }), `Lista de Cortes (${clips.length})`)
+                        React.createElement('div', { className: "p-4 border-b border-slate-800 bg-slate-900 z-10 space-y-3" },
+                            React.createElement('h2', { className: "font-bold flex items-center gap-2" }, React.createElement(Tag, { size: 16, className: "text-blue-500" }), `Lista de Cortes (${clips.length})`),
+                            selectedClips.length > 0 && React.createElement('button', { 
+                                onClick: startVideoExport,
+                                className: "w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold transition-all recording-indicator" 
+                            }, React.createElement(Film, { size: 16 }), `Exportar ${selectedClips.length} Vídeo(s)`)
                         ),
                         React.createElement('div', { className: "flex-1 overflow-y-auto p-3 space-y-3" },
                             clips.length === 0 ? React.createElement('div', { className: "text-center mt-10 p-6 opacity-40" },
                                 React.createElement(Scissors, { size: 48, className: "mx-auto mb-4" }),
                                 React.createElement('p', { className: "text-sm" }, "Ainda não há cortes."),
                                 React.createElement('p', { className: "text-xs mt-1" }, "Use 'Z' para início e 'X' para fim.")
-                            ) : clips.map(clip => React.createElement('div', { key: clip.id, className: "bg-slate-800 rounded-lg p-3 border border-slate-700 hover:border-slate-600 group" },
+                            ) : clips.map(clip => React.createElement('div', { key: clip.id, className: `bg-slate-800 rounded-lg p-3 border transition-all ${selectedClips.includes(clip.id) ? 'border-blue-500 bg-slate-800/80' : 'border-slate-700 hover:border-slate-600'} group` },
                                 React.createElement('div', { className: "flex justify-between items-start mb-2" },
-                                    React.createElement('span', { className: "bg-slate-950 text-slate-400 text-xs font-mono px-2 py-1 rounded" }, `${formatTime(clip.start)} - ${formatTime(clip.end)}`),
+                                    React.createElement('div', { className: "flex items-center gap-2" },
+                                        React.createElement('button', { onClick: () => toggleClipSelection(clip.id), className: "text-slate-400 hover:text-blue-400" }, 
+                                            selectedClips.includes(clip.id) ? React.createElement(CheckSquare, { size: 18, className: "text-blue-500" }) : React.createElement(Square, { size: 18 })
+                                        ),
+                                        React.createElement('span', { className: "bg-slate-950 text-slate-400 text-xs font-mono px-2 py-1 rounded" }, `${formatTime(clip.start)} - ${formatTime(clip.end)}`)
+                                    ),
                                     React.createElement('button', { onClick: () => deleteClip(clip.id), className: "text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100" }, React.createElement(Trash2, { size: 14 }))
                                 ),
-                                React.createElement('div', { className: "flex flex-wrap gap-1 mb-2" },
+                                React.createElement('div', { className: "flex flex-wrap gap-1 mb-2 ml-6" },
                                     clip.tags.map(tag => React.createElement('span', { key: tag, className: "text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700" }, tag))
                                 ),
-                                clip.comment && React.createElement('p', { className: "text-xs text-slate-400 italic mb-2 border-l-2 border-slate-700 pl-2" }, `"${clip.comment}"`),
+                                clip.comment && React.createElement('p', { className: "text-xs text-slate-400 italic mb-2 border-l-2 border-slate-700 pl-2 ml-6" }, `"${clip.comment}"`),
                                 React.createElement('button', { onClick: () => jumpToClip(clip.start), className: "w-full mt-1 flex items-center justify-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 py-1.5 rounded text-slate-200" }, React.createElement(RotateCcw, { size: 12 }), " Rever Lance")
                             ))
                         )
