@@ -39,7 +39,8 @@
             Play, Pause, Scissors, Download, Upload, 
             Trash2, Tag, ChevronRight, Save, X, RotateCcw, 
             FolderInput, Plus, MinusCircle, FileSpreadsheet,
-            CheckSquare, Square, Film, Loader2, Clapperboard, MonitorPlay
+            CheckSquare, Square, Film, Loader2, Clapperboard, MonitorPlay,
+            Settings, UserPlus, Users, Shirt
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- Utilitários ---
@@ -75,6 +76,9 @@
                 yellow: selected 
                     ? "bg-yellow-600 border-yellow-600 text-white shadow-lg scale-105" 
                     : "bg-slate-800 border-slate-700 text-slate-300 hover:border-yellow-500 hover:text-white",
+                slate: selected
+                    ? "bg-slate-500 border-slate-500 text-white shadow-lg scale-105"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-200"
             };
 
             return React.createElement('div', { className: "relative inline-block" },
@@ -91,7 +95,7 @@
         function App() {
             // --- Estados ---
             const [videoSrc, setVideoSrc] = useState(null);
-            const [videoFileName, setVideoFileName] = useState(""); // Novo: Guardar nome do ficheiro
+            const [videoFileName, setVideoFileName] = useState("");
             const [currentTime, setCurrentTime] = useState(0);
             const [duration, setDuration] = useState(0);
             const [isPlaying, setIsPlaying] = useState(false);
@@ -104,26 +108,40 @@
             const [clips, setClips] = useState([]);
             const [selectedClips, setSelectedClips] = useState([]);
             
-            // Estados de Processamento de Vídeo
+            // Info de Jogo (Equipas e Jogadores)
+            const [matchInfo, setMatchInfo] = useState({
+                teamA: "Equipa Casa",
+                teamB: "Equipa Fora",
+                playersA: [], // { id, number, name }
+                playersB: []
+            });
+            const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+
+            // Inputs temporários para adicionar jogador
+            const [tempPlayerA, setTempPlayerA] = useState({ num: '', name: '' });
+            const [tempPlayerB, setTempPlayerB] = useState({ num: '', name: '' });
+
+            // Estados de Processamento
             const [isProcessing, setIsProcessing] = useState(false);
             const [processingStatus, setProcessingStatus] = useState("");
             const recorderRef = useRef(null);
             const chunksRef = useRef([]);
             const processingQueueRef = useRef([]);
 
-            // Categorias
+            // Categorias e Tags
             const [tagCategories, setTagCategories] = useState({
                 "Ataque": ["Golo", "Remate", "Canto a Favor", "Cruzamento"],
                 "Defesa": ["Corte", "Desarme", "Canto Contra", "Defesa GR"],
                 "Disciplina": ["Falta", "Cartão Amarelo", "Cartão Vermelho"]
             });
 
-            // Modal
+            // Modal de Tagging
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [currentTags, setCurrentTags] = useState([]);
+            const [selectedPlayers, setSelectedPlayers] = useState([]); // Jogadores selecionados no clip atual
             const [comment, setComment] = useState("");
 
-            // Etiquetas Manuais
+            // Tags Manuais
             const [customTags, setCustomTags] = useState([]); 
             const [newTagInput, setNewTagInput] = useState("");
             const [newTagColor, setNewTagColor] = useState("blue");
@@ -147,24 +165,49 @@
                 }
             }, [isModalOpen]);
 
+            // --- Gestão de Jogadores ---
+            const addPlayer = (team) => {
+                const input = team === 'A' ? tempPlayerA : tempPlayerB;
+                if (!input.num || !input.name) return;
+
+                const newPlayer = {
+                    id: Date.now(),
+                    number: input.num,
+                    name: input.name
+                };
+
+                setMatchInfo(prev => ({
+                    ...prev,
+                    [team === 'A' ? 'playersA' : 'playersB']: [...prev[team === 'A' ? 'playersA' : 'playersB'], newPlayer].sort((a,b) => parseInt(a.number) - parseInt(b.number))
+                }));
+
+                if (team === 'A') setTempPlayerA({ num: '', name: '' });
+                else setTempPlayerB({ num: '', name: '' });
+            };
+
+            const removePlayer = (team, id) => {
+                setMatchInfo(prev => ({
+                    ...prev,
+                    [team === 'A' ? 'playersA' : 'playersB']: prev[team === 'A' ? 'playersA' : 'playersB'].filter(p => p.id !== id)
+                }));
+            };
+
             // --- Lógica de Exportação VLC (M3U) ---
             const exportVLCPlaylist = () => {
                 if (selectedClips.length === 0) return;
                 
                 const clipsToExport = clips.filter(c => selectedClips.includes(c.id)).sort((a, b) => a.start - b.start);
                 
-                // Cabeçalho M3U
                 let m3uContent = "#EXTM3U\n";
                 
                 clipsToExport.forEach((clip, index) => {
-                    // Título do clip para o VLC
-                    const title = `${index + 1}. ${clip.tags.join(', ') || 'Lance'} (${clip.comment || ''})`;
+                    // Título rico com jogadores
+                    const playerNames = clip.players ? clip.players.map(p => `#${p.number} ${p.name}`).join(', ') : '';
+                    const title = `${index + 1}. ${clip.tags.join(', ')} ${playerNames ? '[' + playerNames + ']' : ''} (${clip.comment || ''})`;
                     
                     m3uContent += `#EXTINF:${Math.round(clip.duration)},${title}\n`;
-                    // Comandos VLC para inicio e fim (em segundos)
                     m3uContent += `#EXTVLCOPT:start-time=${clip.start.toFixed(3)}\n`;
                     m3uContent += `#EXTVLCOPT:stop-time=${clip.end.toFixed(3)}\n`;
-                    // Nome do ficheiro de vídeo original (deve estar na mesma pasta)
                     m3uContent += `${videoFileName}\n`;
                 });
 
@@ -178,18 +221,12 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                alert("Playlist VLC criada!\n\nINSTRUÇÕES:\n1. Coloque o ficheiro .m3u descarregado NA MESMA PASTA do vídeo original.\n2. Abra o ficheiro .m3u com o VLC.\n3. O VLC vai reproduzir apenas os cortes selecionados.");
+                alert("Playlist VLC criada! Coloque o ficheiro na mesma pasta do vídeo original.");
             };
 
-            // --- Lógica de Exportação de Vídeo (Browser Recording) ---
+            // --- Lógica de Exportação de Vídeo ---
             const getSupportedMimeType = () => {
-                const types = [
-                    'video/webm;codecs=vp9',
-                    'video/webm;codecs=vp8',
-                    'video/webm;codecs=h264',
-                    'video/webm',
-                    'video/mp4'
-                ];
+                const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm;codecs=h264', 'video/webm', 'video/mp4'];
                 return types.find(type => MediaRecorder.isTypeSupported(type));
             };
 
@@ -200,17 +237,13 @@
                     }
                     return;
                 }
-
                 const currentClip = processingQueueRef.current[0];
                 setProcessingStatus(`A gravar: ${formatTime(currentClip.start)} - ${formatTime(currentClip.end)}...`);
-                
                 if (videoRef.current) {
                     videoRef.current.currentTime = currentClip.start;
                     setTimeout(() => {
                         videoRef.current.play().then(() => {
-                            if (recorderRef.current.state === 'paused') {
-                                recorderRef.current.resume();
-                            }
+                            if (recorderRef.current.state === 'paused') recorderRef.current.resume();
                         }).catch(e => console.error("Erro playback:", e));
                     }, 200);
                 }
@@ -218,11 +251,9 @@
 
             useEffect(() => {
                 if (!isProcessing || processingQueueRef.current.length === 0) return;
-
                 const checkTime = () => {
                     if (!videoRef.current) return;
                     const currentClip = processingQueueRef.current[0];
-                    
                     if (videoRef.current.currentTime >= currentClip.end) {
                         videoRef.current.pause();
                         recorderRef.current.pause();
@@ -230,25 +261,18 @@
                         processNextClip();
                     }
                 };
-
                 const interval = setInterval(checkTime, 100);
                 return () => clearInterval(interval);
             }, [isProcessing, processNextClip]);
 
             const startVideoExport = async () => {
                 if (selectedClips.length === 0) return;
-                
                 const clipsToExport = clips.filter(c => selectedClips.includes(c.id)).sort((a, b) => a.start - b.start);
                 if (clipsToExport.length === 0) return;
 
-                // Tentar encontrar um formato suportado
                 const mimeType = getSupportedMimeType();
-                if (!mimeType) {
-                    alert("O seu browser não suporta gravação de vídeo. Por favor utilize a opção 'Playlist VLC'.");
-                    return;
-                }
-
-                if (!confirm(`Vai exportar ${clipsToExport.length} lances num único vídeo.\n\nO vídeo será reproduzido no ecrã para gravação.\nPor favor não mude de aba durante o processo.`)) return;
+                if (!mimeType) { alert("Browser não suportado para gravação."); return; }
+                if (!confirm(`Vai exportar ${clipsToExport.length} lances.\nNão mude de aba.`)) return;
 
                 setIsProcessing(true);
                 setProcessingStatus("A preparar gravação...");
@@ -259,11 +283,7 @@
                     const stream = videoRef.current.captureStream(30); 
                     const recorder = new MediaRecorder(stream, { mimeType });
                     recorderRef.current = recorder;
-
-                    recorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) chunksRef.current.push(e.data);
-                    };
-
+                    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
                     recorder.onstop = () => {
                         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
                         const url = URL.createObjectURL(blob);
@@ -273,42 +293,35 @@
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
-                        
                         setIsProcessing(false);
                         setProcessingStatus("");
-                        alert("Vídeo exportado com sucesso! (Formato WebM)");
+                        alert("Vídeo exportado com sucesso!");
                     };
-
                     recorder.start();
                     recorder.pause();
-                    
                     processNextClip();
-
                 } catch (err) {
                     console.error(err);
-                    alert(`Erro técnico: ${err.message}. Tente a opção VLC.`);
+                    alert(`Erro técnico: ${err.message}.`);
                     setIsProcessing(false);
                 }
             };
 
-            // --- Handlers Normais ---
+            // --- Handlers ---
             const handleCSVUpload = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
-
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const text = e.target.result;
                         const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
                         if (lines.length < 2) { alert("CSV inválido."); return; }
-
                         const firstLine = lines[0];
                         const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
                         const headers = firstLine.split(delimiter).map(h => h.trim());
                         const newCategories = {};
                         headers.forEach(h => { if(h) newCategories[h] = []; });
-
                         for (let i = 1; i < lines.length; i++) {
                             const row = lines[i].split(delimiter);
                             headers.forEach((header, index) => {
@@ -327,7 +340,7 @@
                 if (file) {
                     const url = URL.createObjectURL(file);
                     setVideoSrc(url);
-                    setVideoFileName(file.name); // Guardar nome para o VLC
+                    setVideoFileName(file.name);
                     setInPoint(null);
                     setOutPoint(null);
                     setSelectedClips([]);
@@ -343,14 +356,37 @@
                         const parser = new DOMParser();
                         const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
                         const cortes = xmlDoc.getElementsByTagName("corte");
+                        
+                        // Parse das equipas se existirem
+                        const meta = xmlDoc.getElementsByTagName("metadata")[0];
+                        if (meta) {
+                            const tA = meta.getElementsByTagName("teamA")[0];
+                            const tB = meta.getElementsByTagName("teamB")[0];
+                            // Aqui poderíamos carregar os jogadores também, mas para simplificar vamos manter o foco nos clips
+                            // ou carregar estado básico
+                        }
+
                         const loadedClips = Array.from(cortes).map(corte => {
                             const tagsText = corte.getElementsByTagName("etiquetas")[0]?.textContent || "";
+                            
+                            // Parse Jogadores do XML
+                            const jogadoresNode = corte.getElementsByTagName("jogadores")[0];
+                            let players = [];
+                            if (jogadoresNode) {
+                                const jogadorNodes = jogadoresNode.getElementsByTagName("jogador");
+                                players = Array.from(jogadorNodes).map(jn => ({
+                                    number: jn.getAttribute("numero"),
+                                    name: jn.textContent
+                                }));
+                            }
+
                             return {
                                 id: parseFloat(corte.getAttribute("id")) || Date.now(),
                                 start: parseFloat(corte.getElementsByTagName("inicio")[0]?.textContent || 0),
                                 end: parseFloat(corte.getElementsByTagName("fim")[0]?.textContent || 0),
                                 duration: parseFloat(corte.getElementsByTagName("duracao")[0]?.textContent || 0),
                                 tags: tagsText ? tagsText.split(',').map(t => t.trim()) : [],
+                                players: players,
                                 comment: corte.getElementsByTagName("comentario")[0]?.textContent || ""
                             };
                         });
@@ -361,19 +397,11 @@
                 reader.readAsText(file);
             };
 
-            const togglePlay = () => {
-                if (videoRef.current) {
-                    if (isPlaying) videoRef.current.pause();
-                    else videoRef.current.play();
-                    setIsPlaying(!isPlaying);
-                }
-            };
-
+            const togglePlay = () => { if (videoRef.current) { if (isPlaying) videoRef.current.pause(); else videoRef.current.play(); setIsPlaying(!isPlaying); } };
             const handleTimeUpdate = () => { if (videoRef.current && !isProcessing) setCurrentTime(videoRef.current.currentTime); };
             const handleLoadedMetadata = () => { if (videoRef.current) setDuration(videoRef.current.duration); };
 
             const setIn = useCallback(() => { if (videoRef.current) setInPoint(videoRef.current.currentTime); }, []);
-            
             const setOutAndOpenModal = useCallback(() => {
                 if (!videoRef.current) return;
                 const time = videoRef.current.currentTime;
@@ -386,7 +414,7 @@
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
-                    if (isModalOpen || isProcessing) return;
+                    if (isModalOpen || isProcessing || isConfigModalOpen) return;
                     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
                     switch (e.key.toLowerCase()) {
                         case ' ': e.preventDefault(); togglePlay(); break;
@@ -398,10 +426,18 @@
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration, isProcessing]);
+            }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration, isProcessing, isConfigModalOpen]);
 
             const toggleTag = useCallback((tag) => {
                 setCurrentTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+            }, []);
+
+            const togglePlayerSelection = useCallback((player) => {
+                setSelectedPlayers(prev => {
+                    const exists = prev.find(p => p.number === player.number && p.name === player.name);
+                    if (exists) return prev.filter(p => p.number !== player.number || p.name !== player.name);
+                    return [...prev, player];
+                });
             }, []);
 
             const addCustomTag = () => {
@@ -412,7 +448,6 @@
                 setCustomTags([...customTags, { label: newTagInput.trim(), color: newTagColor }]);
                 setNewTagInput("");
             };
-
             const removeCustomTag = (label) => {
                 setCustomTags(customTags.filter(t => t.label !== label));
                 if (currentTags.includes(label)) setCurrentTags(currentTags.filter(t => t !== label));
@@ -425,6 +460,7 @@
                     end: outPoint,
                     duration: outPoint - inPoint,
                     tags: currentTags,
+                    players: selectedPlayers,
                     comment: comment
                 }]);
                 closeModal();
@@ -435,6 +471,7 @@
                 setInPoint(null);
                 setOutPoint(null);
                 setCurrentTags([]);
+                setSelectedPlayers([]);
                 setComment("");
                 setNewTagInput("");
             };
@@ -443,7 +480,6 @@
                 setClips(clips.filter(c => c.id !== id));
                 setSelectedClips(selectedClips.filter(sid => sid !== id));
             };
-            
             const jumpToClip = (start) => {
                 if (videoRef.current && !isProcessing) {
                     videoRef.current.currentTime = start;
@@ -451,17 +487,24 @@
                     setIsPlaying(true);
                 }
             };
-
-            const toggleClipSelection = (id) => {
-                setSelectedClips(prev => 
-                    prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
-                );
-            };
+            const toggleClipSelection = (id) => setSelectedClips(prev => prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]);
 
             const exportXML = () => {
                 let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n<analise_desportiva>\n';
+                // Adicionar info das equipas
+                xmlContent += `  <metadata>\n    <teamA>${matchInfo.teamA}</teamA>\n    <teamB>${matchInfo.teamB}</teamB>\n  </metadata>\n`;
+                
                 clips.forEach(clip => {
-                    xmlContent += `  <corte id="${clip.id}">\n    <inicio>${clip.start.toFixed(3)}</inicio>\n    <fim>${clip.end.toFixed(3)}</fim>\n    <duracao>${clip.duration.toFixed(3)}</duracao>\n    <etiquetas>${clip.tags.join(',')}</etiquetas>\n    <comentario>${clip.comment}</comentario>\n  </corte>\n`;
+                    xmlContent += `  <corte id="${clip.id}">\n    <inicio>${clip.start.toFixed(3)}</inicio>\n    <fim>${clip.end.toFixed(3)}</fim>\n    <duracao>${clip.duration.toFixed(3)}</duracao>\n    <etiquetas>${clip.tags.join(',')}</etiquetas>\n`;
+                    // Adicionar Jogadores
+                    if (clip.players && clip.players.length > 0) {
+                        xmlContent += `    <jogadores>\n`;
+                        clip.players.forEach(p => {
+                            xmlContent += `      <jogador numero="${p.number}">${p.name}</jogador>\n`;
+                        });
+                        xmlContent += `    </jogadores>\n`;
+                    }
+                    xmlContent += `    <comentario>${clip.comment}</comentario>\n  </corte>\n`;
                 });
                 xmlContent += '</analise_desportiva>';
                 const blob = new Blob([xmlContent], { type: 'text/xml' });
@@ -476,21 +519,110 @@
             };
 
             return React.createElement('div', { className: "flex flex-col h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden" },
-                // Overlay de Processamento
+                // Overlays
                 isProcessing && React.createElement('div', { className: "fixed inset-0 bg-black/90 z-[60] flex flex-col items-center justify-center p-8 text-center" },
                     React.createElement(Loader2, { size: 64, className: "text-red-500 animate-spin mb-4" }),
                     React.createElement('h2', { className: "text-2xl font-bold text-white mb-2" }, "A Exportar Vídeo..."),
                     React.createElement('p', { className: "text-slate-300 text-lg animate-pulse" }, processingStatus),
-                    React.createElement('p', { className: "text-slate-500 text-sm mt-8 max-w-md" }, "Não feche nem minimize esta janela. O vídeo está a ser gravado em tempo real.")
+                    React.createElement('p', { className: "text-slate-500 text-sm mt-8 max-w-md" }, "Não feche nem minimize esta janela.")
                 ),
 
-                // Header
+                // Modal de Configuração de Jogo
+                isConfigModalOpen && React.createElement('div', { className: "fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" },
+                    React.createElement('div', { className: "bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]" },
+                        React.createElement('div', { className: "p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50" },
+                            React.createElement('h3', { className: "text-xl font-bold text-white flex items-center gap-2" }, 
+                                React.createElement(Users, { size: 24, className: "text-blue-500" }), "Configuração do Jogo"
+                            ),
+                            React.createElement('button', { onClick: () => setIsConfigModalOpen(false), className: "p-2 hover:bg-slate-700 rounded-full" }, React.createElement(X, { size: 24 }))
+                        ),
+                        React.createElement('div', { className: "p-6 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-8" },
+                            // Equipa A
+                            React.createElement('div', { className: "space-y-4" },
+                                React.createElement('div', { className: "bg-slate-800/50 p-4 rounded-xl border border-slate-700" },
+                                    React.createElement('label', { className: "text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block" }, "Equipa Casa (A)"),
+                                    React.createElement('input', { 
+                                        value: matchInfo.teamA, 
+                                        onChange: (e) => setMatchInfo({...matchInfo, teamA: e.target.value}),
+                                        className: "w-full bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-white font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                    })
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('h4', { className: "text-sm font-bold text-slate-300 mb-2 flex items-center gap-2" }, React.createElement(Shirt, { size: 16 }), "Plantel"),
+                                    React.createElement('div', { className: "flex gap-2 mb-3" },
+                                        React.createElement('input', { 
+                                            placeholder: "#", value: tempPlayerA.num, onChange: e => setTempPlayerA({...tempPlayerA, num: e.target.value}),
+                                            className: "w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm outline-none" 
+                                        }),
+                                        React.createElement('input', { 
+                                            placeholder: "Nome", value: tempPlayerA.name, onChange: e => setTempPlayerA({...tempPlayerA, name: e.target.value}),
+                                            className: "flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm outline-none" 
+                                        }),
+                                        React.createElement('button', { onClick: () => addPlayer('A'), className: "bg-blue-600 hover:bg-blue-700 text-white p-1 rounded" }, React.createElement(Plus, { size: 20 }))
+                                    ),
+                                    React.createElement('div', { className: "space-y-1 max-h-60 overflow-y-auto pr-2" },
+                                        matchInfo.playersA.map(player => 
+                                            React.createElement('div', { key: player.id, className: "flex justify-between items-center bg-slate-800 px-3 py-2 rounded text-sm" },
+                                                React.createElement('span', null, React.createElement('span', { className: "font-mono font-bold text-blue-400 mr-2" }, player.number), player.name),
+                                                React.createElement('button', { onClick: () => removePlayer('A', player.id), className: "text-slate-500 hover:text-red-500" }, React.createElement(Trash2, { size: 14 }))
+                                            )
+                                        )
+                                    )
+                                )
+                            ),
+                            // Equipa B
+                            React.createElement('div', { className: "space-y-4" },
+                                React.createElement('div', { className: "bg-slate-800/50 p-4 rounded-xl border border-slate-700" },
+                                    React.createElement('label', { className: "text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block" }, "Equipa Fora (B)"),
+                                    React.createElement('input', { 
+                                        value: matchInfo.teamB, 
+                                        onChange: (e) => setMatchInfo({...matchInfo, teamB: e.target.value}),
+                                        className: "w-full bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-white font-bold focus:ring-2 focus:ring-red-500 outline-none"
+                                    })
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('h4', { className: "text-sm font-bold text-slate-300 mb-2 flex items-center gap-2" }, React.createElement(Shirt, { size: 16 }), "Plantel"),
+                                    React.createElement('div', { className: "flex gap-2 mb-3" },
+                                        React.createElement('input', { 
+                                            placeholder: "#", value: tempPlayerB.num, onChange: e => setTempPlayerB({...tempPlayerB, num: e.target.value}),
+                                            className: "w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm outline-none" 
+                                        }),
+                                        React.createElement('input', { 
+                                            placeholder: "Nome", value: tempPlayerB.name, onChange: e => setTempPlayerB({...tempPlayerB, name: e.target.value}),
+                                            className: "flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm outline-none" 
+                                        }),
+                                        React.createElement('button', { onClick: () => addPlayer('B'), className: "bg-red-600 hover:bg-red-700 text-white p-1 rounded" }, React.createElement(Plus, { size: 20 }))
+                                    ),
+                                    React.createElement('div', { className: "space-y-1 max-h-60 overflow-y-auto pr-2" },
+                                        matchInfo.playersB.map(player => 
+                                            React.createElement('div', { key: player.id, className: "flex justify-between items-center bg-slate-800 px-3 py-2 rounded text-sm" },
+                                                React.createElement('span', null, React.createElement('span', { className: "font-mono font-bold text-red-400 mr-2" }, player.number), player.name),
+                                                React.createElement('button', { onClick: () => removePlayer('B', player.id), className: "text-slate-500 hover:text-red-500" }, React.createElement(Trash2, { size: 14 }))
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: "p-4 bg-slate-800/50 border-t border-slate-800 flex justify-end" },
+                            React.createElement('button', { onClick: () => setIsConfigModalOpen(false), className: "px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold" }, "Concluir")
+                        )
+                    )
+                ),
+
+                // Header Principal
                 React.createElement('header', { className: "h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900" },
                     React.createElement('div', { className: "flex items-center gap-2" },
                         React.createElement(Scissors, { className: "text-blue-500 w-6 h-6" }),
                         React.createElement('h1', { className: "text-xl font-bold tracking-tight" }, "ScoutMaster ", React.createElement('span', { className: "text-blue-500" }, "Pro"))
                     ),
                     React.createElement('div', { className: "flex items-center gap-2" },
+                        // Botão de Configuração de Equipas
+                        React.createElement('button', { 
+                            onClick: () => setIsConfigModalOpen(true),
+                            className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium text-blue-400 transition-colors border border-slate-700 mr-2" 
+                        }, React.createElement(Settings, { size: 16 }), "Configurar Equipas"),
+
                         React.createElement('input', { type: "file", accept: "video/*", onChange: handleFileUpload, ref: fileInputRef, className: "hidden" }),
                         React.createElement('input', { type: "file", accept: ".xml", onChange: handleXMLUpload, ref: xmlInputRef, className: "hidden" }),
                         React.createElement('input', { type: "file", accept: ".csv", onChange: handleCSVUpload, ref: csvInputRef, className: "hidden" }),
@@ -513,7 +645,7 @@
                             videoSrc ? React.createElement('video', {
                                 ref: videoRef, src: videoSrc, 
                                 className: "w-full h-full object-contain",
-                                crossOrigin: "anonymous", // Importante para gravação
+                                crossOrigin: "anonymous", 
                                 onClick: togglePlay, onTimeUpdate: handleTimeUpdate, onLoadedMetadata: handleLoadedMetadata
                             }) : React.createElement('div', { className: "text-center text-slate-500" },
                                 React.createElement(Upload, { className: "w-16 h-16 mx-auto mb-4 opacity-50" }),
@@ -581,13 +713,19 @@
                                 React.createElement('div', { className: "flex flex-wrap gap-1 mb-2 ml-6" },
                                     clip.tags.map(tag => React.createElement('span', { key: tag, className: "text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700" }, tag))
                                 ),
+                                // Exibir Jogadores no clip
+                                clip.players && clip.players.length > 0 && React.createElement('div', { className: "flex flex-wrap gap-1 mb-2 ml-6" },
+                                    clip.players.map(p => React.createElement('span', { key: p.id, className: "text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 flex items-center gap-1" }, 
+                                        React.createElement(Shirt, { size: 10 }), `${p.number} ${p.name.split(' ')[0]}`
+                                    ))
+                                ),
                                 clip.comment && React.createElement('p', { className: "text-xs text-slate-400 italic mb-2 border-l-2 border-slate-700 pl-2 ml-6" }, `"${clip.comment}"`),
                                 React.createElement('button', { onClick: () => jumpToClip(clip.start), className: "w-full mt-1 flex items-center justify-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 py-1.5 rounded text-slate-200" }, React.createElement(RotateCcw, { size: 12 }), " Rever Lance")
                             ))
                         )
                     )
                 ),
-                // Modal
+                // Modal de Tagging (Modificado para incluir jogadores)
                 isModalOpen && React.createElement('div', { className: "fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" },
                     React.createElement('div', { className: "bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]" },
                         React.createElement('div', { className: "p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50" },
@@ -599,6 +737,44 @@
                         ),
                         React.createElement('div', { className: "p-6 overflow-y-auto flex-1" },
                             React.createElement('div', { className: "space-y-6" },
+                                
+                                // Secção de Seleção de Jogadores
+                                (matchInfo.playersA.length > 0 || matchInfo.playersB.length > 0) && React.createElement('div', { className: "bg-slate-800/30 p-4 rounded-xl border border-slate-700/50" },
+                                    React.createElement('h4', { className: "text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2" }, 
+                                        React.createElement(Users, { size: 14 }), "Jogadores Envolvidos"
+                                    ),
+                                    React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+                                        // Jogadores Equipa A
+                                        matchInfo.playersA.length > 0 && React.createElement('div', null,
+                                            React.createElement('div', { className: "text-xs font-bold text-blue-400 mb-2" }, matchInfo.teamA),
+                                            React.createElement('div', { className: "flex flex-wrap gap-2" },
+                                                matchInfo.playersA.map(p => React.createElement(TagButton, {
+                                                    key: p.id,
+                                                    label: `${p.number} ${p.name.split(' ')[0]}`,
+                                                    color: "slate",
+                                                    selected: selectedPlayers.some(sp => sp.id === p.id),
+                                                    onClick: () => togglePlayerSelection(p)
+                                                }))
+                                            )
+                                        ),
+                                        // Jogadores Equipa B
+                                        matchInfo.playersB.length > 0 && React.createElement('div', null,
+                                            React.createElement('div', { className: "text-xs font-bold text-red-400 mb-2" }, matchInfo.teamB),
+                                            React.createElement('div', { className: "flex flex-wrap gap-2" },
+                                                matchInfo.playersB.map(p => React.createElement(TagButton, {
+                                                    key: p.id,
+                                                    label: `${p.number} ${p.name.split(' ')[0]}`,
+                                                    color: "slate",
+                                                    selected: selectedPlayers.some(sp => sp.id === p.id),
+                                                    onClick: () => togglePlayerSelection(p)
+                                                }))
+                                            )
+                                        )
+                                    )
+                                ),
+
+                                React.createElement('hr', { className: "border-slate-800" }),
+
                                 Object.entries(tagCategories).map(([category, tags]) => React.createElement('div', { key: category },
                                     React.createElement('h4', { className: "text-xs font-bold text-slate-500 uppercase tracking-wider mb-3" }, category),
                                     React.createElement('div', { className: "flex flex-wrap gap-3" },
