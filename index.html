@@ -1,668 +1,465 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-  Play, Pause, Scissors, Download, Upload, 
-  Trash2, Tag, ChevronRight, Save, X, RotateCcw, FolderInput, Plus, MinusCircle, FileSpreadsheet
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScoutMaster Pro</title>
+    
+    <!-- Tailwind CSS para o design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Configuração de cores e estilos base -->
+    <style>
+        body { background-color: #020617; color: #f1f5f9; }
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-// --- Utilitários ---
-const formatTime = (seconds) => {
-  if (!seconds && seconds !== 0) return "00:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 10);
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
-};
+    <!-- Importação do React e Lucide via CDN (Módulos ES) -->
+    <script type="module">
+        import React, { useState, useRef, useEffect, useCallback } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        import { 
+            Play, Pause, Scissors, Download, Upload, 
+            Trash2, Tag, ChevronRight, Save, X, RotateCcw, 
+            FolderInput, Plus, MinusCircle, FileSpreadsheet 
+        } from 'https://esm.sh/lucide-react@0.263.1';
 
-// Determinar cor baseada no nome da categoria
-const getCategoryColor = (categoryName) => {
-  const lower = categoryName.toLowerCase();
-  if (lower.includes('ataque') || lower.includes('ofensiv') || lower.includes('golo')) return 'green';
-  if (lower.includes('defesa') || lower.includes('defensiv') || lower.includes('perda')) return 'red';
-  if (lower.includes('disciplina') || lower.includes('cartão')) return 'yellow';
-  return 'blue';
-};
+        // --- Utilitários ---
+        const formatTime = (seconds) => {
+            if (!seconds && seconds !== 0) return "00:00";
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 10);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
+        };
 
-// --- Botão de Etiqueta Personalizado (Otimizado com memo) ---
-const TagButton = React.memo(({ label, selected, onClick, color = "blue", onDelete }) => {
-  const baseClasses = "px-4 py-2 rounded-lg font-semibold transition-all duration-200 border-2 relative group";
-  const variants = {
-    blue: selected 
-      ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-105" 
-      : "bg-slate-800 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white",
-    red: selected 
-      ? "bg-red-600 border-red-600 text-white shadow-lg scale-105" 
-      : "bg-slate-800 border-slate-700 text-slate-300 hover:border-red-500 hover:text-white",
-    green: selected 
-      ? "bg-green-600 border-green-600 text-white shadow-lg scale-105" 
-      : "bg-slate-800 border-slate-700 text-slate-300 hover:border-green-500 hover:text-white",
-    yellow: selected 
-      ? "bg-yellow-600 border-yellow-600 text-white shadow-lg scale-105" 
-      : "bg-slate-800 border-slate-700 text-slate-300 hover:border-yellow-500 hover:text-white",
-  };
+        const getCategoryColor = (categoryName) => {
+            const lower = categoryName.toLowerCase();
+            if (lower.includes('ataque') || lower.includes('ofensiv') || lower.includes('golo')) return 'green';
+            if (lower.includes('defesa') || lower.includes('defensiv') || lower.includes('perda')) return 'red';
+            if (lower.includes('disciplina') || lower.includes('cartão')) return 'yellow';
+            return 'blue';
+        };
 
-  return (
-    <div className="relative inline-block">
-      <button onClick={onClick} className={`${baseClasses} ${variants[color] || variants.blue}`}>
-        {label}
-      </button>
-      {onDelete && (
-        <button 
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-          title="Remover etiqueta"
-        >
-          <MinusCircle size={12} />
-        </button>
-      )}
-    </div>
-  );
-});
+        // --- Botão de Etiqueta ---
+        const TagButton = React.memo(({ label, selected, onClick, color = "blue", onDelete }) => {
+            const baseClasses = "px-4 py-2 rounded-lg font-semibold transition-all duration-200 border-2 relative group";
+            const variants = {
+                blue: selected 
+                    ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-105" 
+                    : "bg-slate-800 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white",
+                red: selected 
+                    ? "bg-red-600 border-red-600 text-white shadow-lg scale-105" 
+                    : "bg-slate-800 border-slate-700 text-slate-300 hover:border-red-500 hover:text-white",
+                green: selected 
+                    ? "bg-green-600 border-green-600 text-white shadow-lg scale-105" 
+                    : "bg-slate-800 border-slate-700 text-slate-300 hover:border-green-500 hover:text-white",
+                yellow: selected 
+                    ? "bg-yellow-600 border-yellow-600 text-white shadow-lg scale-105" 
+                    : "bg-slate-800 border-slate-700 text-slate-300 hover:border-yellow-500 hover:text-white",
+            };
 
-export default function App() {
-  // --- Estados ---
-  const [videoSrc, setVideoSrc] = useState(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  
-  // Estados de Corte
-  const [inPoint, setInPoint] = useState(null);
-  const [outPoint, setOutPoint] = useState(null);
-  
-  // Dados
-  const [clips, setClips] = useState([]);
-  
-  // Categorias de Etiquetas (Carregadas via CSV ou padrão)
-  const [tagCategories, setTagCategories] = useState({
-    "Ataque": ["Golo", "Remate", "Canto a Favor", "Cruzamento"],
-    "Defesa": ["Corte", "Desarme", "Canto Contra", "Defesa GR"],
-    "Disciplina": ["Falta", "Cartão Amarelo", "Cartão Vermelho"]
-  });
-
-  // Modal de Etiquetas
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTags, setCurrentTags] = useState([]);
-  const [comment, setComment] = useState("");
-
-  // Gestão de Etiquetas Manuais (extra)
-  const [customTags, setCustomTags] = useState([]); 
-  const [newTagInput, setNewTagInput] = useState("");
-  const [newTagColor, setNewTagColor] = useState("blue");
-
-  // Refs
-  const videoRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const xmlInputRef = useRef(null);
-  const csvInputRef = useRef(null);
-  const customTagInputRef = useRef(null); // Ref para foco automático
-
-  // --- Limpeza de Memória ---
-  useEffect(() => {
-    // Revoga a URL do objeto quando o componente desmonta ou o videoSrc muda
-    return () => {
-      if (videoSrc) {
-        URL.revokeObjectURL(videoSrc);
-      }
-    };
-  }, [videoSrc]);
-
-  // Foco automático ao abrir modal
-  useEffect(() => {
-    if (isModalOpen && customTagInputRef.current) {
-      setTimeout(() => customTagInputRef.current.focus(), 100);
-    }
-  }, [isModalOpen]);
-
-  // --- Importação de CSV (Etiquetas) ---
-  const handleCSVUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target.result;
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-        
-        if (lines.length < 2) {
-          alert("O ficheiro CSV parece vazio ou inválido (necessita de cabeçalho e dados).");
-          return;
-        }
-
-        // Tentar detetar o delimitador (virgula ou ponto e virgula)
-        const firstLine = lines[0];
-        const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
-
-        const headers = firstLine.split(delimiter).map(h => h.trim());
-        const newCategories = {};
-        
-        // Inicializar categorias
-        headers.forEach(h => { if(h) newCategories[h] = []; });
-
-        // Processar linhas
-        for (let i = 1; i < lines.length; i++) {
-          const row = lines[i].split(delimiter);
-          headers.forEach((header, index) => {
-            if (row[index] && row[index].trim()) {
-              newCategories[header].push(row[index].trim());
-            }
-          });
-        }
-
-        setTagCategories(newCategories);
-        alert(`Etiquetas importadas! ${headers.length} categorias encontradas.`);
-      } catch (err) {
-        console.error(err);
-        alert("Erro ao processar o ficheiro CSV. Verifique o formato.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // --- Manipulação de Vídeo ---
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Se já existir um vídeo, a limpeza é tratada pelo useEffect
-      const url = URL.createObjectURL(file);
-      setVideoSrc(url);
-      setInPoint(null);
-      setOutPoint(null);
-    }
-  };
-
-  // --- Importação de XML ---
-  const handleXMLUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
-        
-        const cortes = xmlDoc.getElementsByTagName("corte");
-        const loadedClips = Array.from(cortes).map(corte => {
-          const tagsText = corte.getElementsByTagName("etiquetas")[0]?.textContent || "";
-          const tags = tagsText ? tagsText.split(',').map(t => t.trim()) : [];
-
-          return {
-            id: parseFloat(corte.getAttribute("id")) || Date.now() + Math.random(),
-            start: parseFloat(corte.getElementsByTagName("inicio")[0]?.textContent || 0),
-            end: parseFloat(corte.getElementsByTagName("fim")[0]?.textContent || 0),
-            duration: parseFloat(corte.getElementsByTagName("duracao")[0]?.textContent || 0),
-            tags: tags,
-            comment: corte.getElementsByTagName("comentario")[0]?.textContent || ""
-          };
+            return React.createElement('div', { className: "relative inline-block" },
+                React.createElement('button', { onClick: onClick, className: `${baseClasses} ${variants[color] || variants.blue}` }, label),
+                onDelete && React.createElement('button', {
+                    onClick: (e) => { e.stopPropagation(); onDelete(); },
+                    className: "absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm",
+                    title: "Remover etiqueta"
+                }, React.createElement(MinusCircle, { size: 12 }))
+            );
         });
 
-        setClips(loadedClips);
-        alert(`${loadedClips.length} cortes carregados com sucesso!`);
-      } catch (error) {
-        console.error("Erro ao ler XML:", error);
-        alert("Erro ao ler o ficheiro XML. Verifique se o formato está correto.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
-  };
-
-  // --- Lógica de Corte e Atalhos ---
-  const setIn = useCallback(() => {
-    if (!videoRef.current) return;
-    setInPoint(videoRef.current.currentTime);
-  }, []);
-
-  const setOutAndOpenModal = useCallback(() => {
-    if (!videoRef.current) return;
-    const time = videoRef.current.currentTime;
-    setOutPoint(time);
-    if (videoRef.current) videoRef.current.pause();
-    setIsPlaying(false);
-    
-    if (inPoint === null) {
-      setInPoint(Math.max(0, time - 5));
-    }
-    
-    setIsModalOpen(true);
-  }, [inPoint]);
-
-  // Listener de Teclado
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (isModalOpen) return;
-
-      // Se o foco estiver num input de texto, não disparar atalhos
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      switch (e.key.toLowerCase()) {
-        case ' ':
-          e.preventDefault(); 
-          togglePlay();
-          break;
-        case 'z': 
-          setIn();
-          break;
-        case 'x': 
-          setOutAndOpenModal();
-          break;
-        case 'arrowleft':
-          if (videoRef.current) {
-             videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 3);
-             setCurrentTime(videoRef.current.currentTime);
-          }
-          break;
-        case 'arrowright':
-          if (videoRef.current) {
-             videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 3);
-             setCurrentTime(videoRef.current.currentTime);
-          }
-          break;
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration]);
-
-  // --- Gestão de Clips ---
-  const toggleTag = useCallback((tag) => {
-    setCurrentTags(prev => {
-      if (prev.includes(tag)) {
-        return prev.filter(t => t !== tag);
-      } else {
-        return [...prev, tag];
-      }
-    });
-  }, []);
-
-  // Função para adicionar nova etiqueta personalizada manualmente (extra)
-  const addCustomTag = () => {
-    if (!newTagInput.trim()) return;
-    
-    // Verificar duplicados em todas as categorias
-    let exists = false;
-    Object.values(tagCategories).forEach(tags => {
-      if (tags.includes(newTagInput.trim())) exists = true;
-    });
-    
-    if (exists || customTags.some(t => t.label === newTagInput.trim())) {
-      alert("Esta etiqueta já existe!");
-      return;
-    }
-
-    setCustomTags([...customTags, { label: newTagInput.trim(), color: newTagColor }]);
-    setNewTagInput("");
-  };
-
-  const removeCustomTag = (labelToRemove) => {
-    setCustomTags(customTags.filter(t => t.label !== labelToRemove));
-    if (currentTags.includes(labelToRemove)) {
-      setCurrentTags(currentTags.filter(t => t !== labelToRemove));
-    }
-  };
-
-  const saveClip = () => {
-    const newClip = {
-      id: Date.now(),
-      start: inPoint,
-      end: outPoint,
-      duration: outPoint - inPoint,
-      tags: currentTags,
-      comment: comment
-    };
-    
-    setClips([...clips, newClip]);
-    closeModal();
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setInPoint(null);
-    setOutPoint(null);
-    setCurrentTags([]);
-    setComment("");
-    setNewTagInput(""); 
-  };
-
-  const deleteClip = (id) => {
-    setClips(clips.filter(c => c.id !== id));
-  };
-
-  const jumpToClip = (start) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = start;
-      videoRef.current.play();
-      setIsPlaying(true);
-    }
-  };
-
-  // --- Exportação ---
-  const exportXML = () => {
-    let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n<analise_desportiva>\n';
-    
-    clips.forEach(clip => {
-      xmlContent += `  <corte id="${clip.id}">\n`;
-      xmlContent += `    <inicio>${clip.start.toFixed(3)}</inicio>\n`;
-      xmlContent += `    <fim>${clip.end.toFixed(3)}</fim>\n`;
-      xmlContent += `    <duracao>${clip.duration.toFixed(3)}</duracao>\n`;
-      xmlContent += `    <etiquetas>${clip.tags.join(',')}</etiquetas>\n`;
-      xmlContent += `    <comentario>${clip.comment}</comentario>\n`;
-      xmlContent += `  </corte>\n`;
-    });
-    
-    xmlContent += '</analise_desportiva>';
-
-    const blob = new Blob([xmlContent], { type: 'text/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `analise_jogo_${new Date().toISOString().slice(0,10)}.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
-      
-      {/* Header */}
-      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900">
-        <div className="flex items-center gap-2">
-          <Scissors className="text-blue-500 w-6 h-6" />
-          <h1 className="text-xl font-bold tracking-tight">ScoutMaster <span className="text-blue-500">Pro</span></h1>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* Inputs Ocultos */}
-          <input type="file" accept="video/*" onChange={handleFileUpload} ref={fileInputRef} className="hidden" />
-          <input type="file" accept=".xml" onChange={handleXMLUpload} ref={xmlInputRef} className="hidden" />
-          <input type="file" accept=".csv" onChange={handleCSVUpload} ref={csvInputRef} className="hidden" />
-
-          {/* Botões */}
-          <div className="flex bg-slate-800 rounded-lg p-1 gap-1">
-            <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" title="Carregar Vídeo">
-              <Upload size={16} /> Vídeo
-            </button>
-            <div className="w-px bg-slate-700 my-1"></div>
-            <button onClick={() => xmlInputRef.current.click()} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" title="Importar Análise XML">
-              <FolderInput size={16} /> Carregar XML
-            </button>
-            <div className="w-px bg-slate-700 my-1"></div>
-            <button onClick={() => csvInputRef.current.click()} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" title="Importar Etiquetas CSV (Excel)">
-              <FileSpreadsheet size={16} /> Etiquetas CSV
-            </button>
-          </div>
-          
-          <div className="h-6 w-px bg-slate-800 mx-2"></div>
-
-          <button onClick={exportXML} disabled={clips.length === 0} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${clips.length === 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-            <Download size={16} /> Exportar
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
-        
-        {/* Left: Video Player Area */}
-        <div className="flex-1 flex flex-col p-4 gap-4 relative">
-          <div className="flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative flex items-center justify-center border border-slate-800 group">
-            {videoSrc ? (
-              <video 
-                ref={videoRef}
-                src={videoSrc}
-                className="w-full h-full object-contain"
-                onClick={togglePlay}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-              />
-            ) : (
-              <div className="text-center text-slate-500">
-                <Upload className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>Carregue um vídeo para começar a análise</p>
-                <p className="text-sm mt-2 opacity-60">Suporta MP4, WebM, MOV</p>
-              </div>
-            )}
-
-            {inPoint !== null && (
-              <div className="absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1 rounded-md text-xs font-bold backdrop-blur-sm animate-pulse">
-                IN: {formatTime(inPoint)}
-              </div>
-            )}
-          </div>
-
-          {/* Controls Bar */}
-          <div className="h-24 bg-slate-900 rounded-xl border border-slate-800 p-4 flex flex-col gap-2">
-            <input 
-              type="range" min="0" max={duration || 100} value={currentTime} 
-              onChange={(e) => {
-                const time = parseFloat(e.target.value);
-                setCurrentTime(time);
-                if(videoRef.current) videoRef.current.currentTime = time;
-              }}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-            />
+        // --- Componente Principal ---
+        function App() {
+            // --- Estados ---
+            const [videoSrc, setVideoSrc] = useState(null);
+            const [currentTime, setCurrentTime] = useState(0);
+            const [duration, setDuration] = useState(0);
+            const [isPlaying, setIsPlaying] = useState(false);
             
-            <div className="flex items-center justify-between mt-1">
-              <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-full transition-colors">
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-                </button>
-                <span className="text-sm font-mono text-slate-300">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-                <span className="text-xs text-slate-500 ml-2 hidden lg:inline-block">
-                  (Espaço: Play/Pause | ←/→ : -3s/+3s)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] uppercase text-slate-500 font-bold mb-1">Tecla 'Z'</span>
-                  <button onClick={setIn} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${inPoint !== null ? 'bg-green-600 text-white shadow-lg shadow-green-900/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                    MARCAR INÍCIO
-                  </button>
-                </div>
-                <ChevronRight className="text-slate-600" />
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] uppercase text-slate-500 font-bold mb-1">Tecla 'X'</span>
-                  <button onClick={setOutAndOpenModal} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow-lg shadow-red-900/50 transition-all">
-                    MARCAR FIM
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Clips Sidebar */}
-        <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col">
-          <div className="p-4 border-b border-slate-800 bg-slate-900 z-10">
-            <h2 className="font-bold flex items-center gap-2">
-              <Tag size={16} className="text-blue-500"/>
-              Lista de Cortes ({clips.length})
-            </h2>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {clips.length === 0 ? (
-              <div className="text-center mt-10 p-6 opacity-40">
-                <Scissors size={48} className="mx-auto mb-4" />
-                <p className="text-sm">Ainda não há cortes.</p>
-                <p className="text-xs mt-1">Use 'Z' para início e 'X' para fim.</p>
-              </div>
-            ) : (
-              clips.map((clip, index) => (
-                <div key={clip.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700 hover:border-slate-600 group transition-all">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="bg-slate-950 text-slate-400 text-xs font-mono px-2 py-1 rounded">
-                      {formatTime(clip.start)} - {formatTime(clip.end)}
-                    </span>
-                    <button onClick={() => deleteClip(clip.id)} className="text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {clip.tags.map(tag => (
-                      <span key={tag} className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  
-                  {clip.comment && <p className="text-xs text-slate-400 italic mb-2 border-l-2 border-slate-700 pl-2">"{clip.comment}"</p>}
-
-                  <button onClick={() => jumpToClip(clip.start)} className="w-full mt-1 flex items-center justify-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 py-1.5 rounded transition-colors text-slate-200">
-                    <RotateCcw size={12} /> Rever Lance
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal de Etiquetas */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+            // Estados de Corte
+            const [inPoint, setInPoint] = useState(null);
+            const [outPoint, setOutPoint] = useState(null);
             
-            {/* Modal Header */}
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
-              <div>
-                <h3 className="text-xl font-bold text-white">Classificar Lance</h3>
-                <p className="text-sm text-slate-400 font-mono mt-1">
-                  Intervalo: <span className="text-blue-400">{formatTime(inPoint)}</span> a <span className="text-blue-400">{formatTime(outPoint)}</span>
-                </p>
-              </div>
-              <button onClick={closeModal} className="p-2 hover:bg-slate-700 rounded-full transition-colors">
-                <X size={24} />
-              </button>
-            </div>
+            // Dados
+            const [clips, setClips] = useState([]);
+            
+            // Categorias
+            const [tagCategories, setTagCategories] = useState({
+                "Ataque": ["Golo", "Remate", "Canto a Favor", "Cruzamento"],
+                "Defesa": ["Corte", "Desarme", "Canto Contra", "Defesa GR"],
+                "Disciplina": ["Falta", "Cartão Amarelo", "Cartão Vermelho"]
+            });
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="space-y-6">
-                
-                {/* Renderização Dinâmica das Categorias */}
-                {Object.entries(tagCategories).map(([category, tags]) => (
-                  <div key={category}>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{category}</h4>
-                    <div className="flex flex-wrap gap-3">
-                      {tags.map(tag => (
-                        <TagButton 
-                          key={tag} 
-                          label={tag} 
-                          color={getCategoryColor(category)}
-                          selected={currentTags.includes(tag)} 
-                          onClick={() => toggleTag(tag)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+            // Modal
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [currentTags, setCurrentTags] = useState([]);
+            const [comment, setComment] = useState("");
 
-                <hr className="border-slate-800 my-4" />
+            // Etiquetas Manuais
+            const [customTags, setCustomTags] = useState([]); 
+            const [newTagInput, setNewTagInput] = useState("");
+            const [newTagColor, setNewTagColor] = useState("blue");
 
-                {/* Secção de Criação de Etiqueta Manual */}
-                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Etiqueta Extra</h4>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      ref={customTagInputRef}
-                      value={newTagInput}
-                      onChange={(e) => setNewTagInput(e.target.value)}
-                      placeholder="Criar nova..."
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded-md px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                    <select 
-                      value={newTagColor}
-                      onChange={(e) => setNewTagColor(e.target.value)}
-                      className="bg-slate-950 border border-slate-700 rounded-md px-2 text-sm text-slate-300 outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="blue">Geral</option>
-                      <option value="green">Verde</option>
-                      <option value="red">Vermelho</option>
-                      <option value="yellow">Amarelo</option>
-                    </select>
-                    <button onClick={addCustomTag} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md transition-colors">
-                      <Plus size={18} />
-                    </button>
-                  </div>
-                </div>
+            // Refs
+            const videoRef = useRef(null);
+            const fileInputRef = useRef(null);
+            const xmlInputRef = useRef(null);
+            const csvInputRef = useRef(null);
+            const customTagInputRef = useRef(null);
 
-                {/* Etiquetas Manuais */}
-                {customTags.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-bold text-yellow-500 uppercase tracking-wider mb-3 mt-2">Personalizadas</h4>
-                    <div className="flex flex-wrap gap-3">
-                      {customTags.map((tag, idx) => (
-                        <TagButton 
-                          key={`custom-${idx}`} 
-                          label={tag.label} 
-                          color={tag.color}
-                          selected={currentTags.includes(tag.label)} 
-                          onClick={() => toggleTag(tag.label)}
-                          onDelete={() => removeCustomTag(tag.label)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
+            // Cleanup
+            useEffect(() => {
+                return () => { if (videoSrc) URL.revokeObjectURL(videoSrc); };
+            }, [videoSrc]);
 
-                {/* Comentários */}
-                <div>
-                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Notas</h4>
-                   <textarea
-                    placeholder="Observações táticas (opcional)..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none h-20 text-sm"
-                   />
-                </div>
-              </div>
-            </div>
+            // Foco
+            useEffect(() => {
+                if (isModalOpen && customTagInputRef.current) {
+                    setTimeout(() => customTagInputRef.current.focus(), 100);
+                }
+            }, [isModalOpen]);
 
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-800/50 border-t border-slate-800 flex justify-end gap-3">
-              <button onClick={closeModal} className="px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
-              <button onClick={saveClip} className="px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg shadow-blue-900/20 flex items-center gap-2 transform active:scale-95 transition-all">
-                <Save size={18} /> Guardar Corte
-              </button>
-            </div>
+            // --- Handlers ---
+            const handleCSVUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
 
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+                        if (lines.length < 2) { alert("CSV inválido."); return; }
+
+                        const firstLine = lines[0];
+                        const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+                        const headers = firstLine.split(delimiter).map(h => h.trim());
+                        const newCategories = {};
+                        headers.forEach(h => { if(h) newCategories[h] = []; });
+
+                        for (let i = 1; i < lines.length; i++) {
+                            const row = lines[i].split(delimiter);
+                            headers.forEach((header, index) => {
+                                if (row[index] && row[index].trim()) newCategories[header].push(row[index].trim());
+                            });
+                        }
+                        setTagCategories(newCategories);
+                        alert(`Etiquetas importadas!`);
+                    } catch (err) { alert("Erro ao processar CSV."); }
+                };
+                reader.readAsText(file);
+            };
+
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    setVideoSrc(url);
+                    setInPoint(null);
+                    setOutPoint(null);
+                }
+            };
+
+            const handleXMLUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
+                        const cortes = xmlDoc.getElementsByTagName("corte");
+                        const loadedClips = Array.from(cortes).map(corte => {
+                            const tagsText = corte.getElementsByTagName("etiquetas")[0]?.textContent || "";
+                            return {
+                                id: parseFloat(corte.getAttribute("id")) || Date.now(),
+                                start: parseFloat(corte.getElementsByTagName("inicio")[0]?.textContent || 0),
+                                end: parseFloat(corte.getElementsByTagName("fim")[0]?.textContent || 0),
+                                duration: parseFloat(corte.getElementsByTagName("duracao")[0]?.textContent || 0),
+                                tags: tagsText ? tagsText.split(',').map(t => t.trim()) : [],
+                                comment: corte.getElementsByTagName("comentario")[0]?.textContent || ""
+                            };
+                        });
+                        setClips(loadedClips);
+                        alert(`${loadedClips.length} cortes carregados!`);
+                    } catch (error) { alert("Erro no XML."); }
+                };
+                reader.readAsText(file);
+            };
+
+            const togglePlay = () => {
+                if (videoRef.current) {
+                    if (isPlaying) videoRef.current.pause();
+                    else videoRef.current.play();
+                    setIsPlaying(!isPlaying);
+                }
+            };
+
+            const handleTimeUpdate = () => { if (videoRef.current) setCurrentTime(videoRef.current.currentTime); };
+            const handleLoadedMetadata = () => { if (videoRef.current) setDuration(videoRef.current.duration); };
+
+            const setIn = useCallback(() => { if (videoRef.current) setInPoint(videoRef.current.currentTime); }, []);
+            
+            const setOutAndOpenModal = useCallback(() => {
+                if (!videoRef.current) return;
+                const time = videoRef.current.currentTime;
+                setOutPoint(time);
+                videoRef.current.pause();
+                setIsPlaying(false);
+                if (inPoint === null) setInPoint(Math.max(0, time - 5));
+                setIsModalOpen(true);
+            }, [inPoint]);
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (isModalOpen) return;
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    switch (e.key.toLowerCase()) {
+                        case ' ': e.preventDefault(); togglePlay(); break;
+                        case 'z': setIn(); break;
+                        case 'x': setOutAndOpenModal(); break;
+                        case 'arrowleft': if(videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 3); break;
+                        case 'arrowright': if(videoRef.current) videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 3); break;
+                    }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [isPlaying, isModalOpen, setIn, setOutAndOpenModal, duration]);
+
+            const toggleTag = useCallback((tag) => {
+                setCurrentTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+            }, []);
+
+            const addCustomTag = () => {
+                if (!newTagInput.trim()) return;
+                let exists = false;
+                Object.values(tagCategories).forEach(tags => { if (tags.includes(newTagInput.trim())) exists = true; });
+                if (exists || customTags.some(t => t.label === newTagInput.trim())) { alert("Já existe!"); return; }
+                setCustomTags([...customTags, { label: newTagInput.trim(), color: newTagColor }]);
+                setNewTagInput("");
+            };
+
+            const removeCustomTag = (label) => {
+                setCustomTags(customTags.filter(t => t.label !== label));
+                if (currentTags.includes(label)) setCurrentTags(currentTags.filter(t => t !== label));
+            };
+
+            const saveClip = () => {
+                setClips([...clips, {
+                    id: Date.now(),
+                    start: inPoint,
+                    end: outPoint,
+                    duration: outPoint - inPoint,
+                    tags: currentTags,
+                    comment: comment
+                }]);
+                closeModal();
+            };
+
+            const closeModal = () => {
+                setIsModalOpen(false);
+                setInPoint(null);
+                setOutPoint(null);
+                setCurrentTags([]);
+                setComment("");
+                setNewTagInput("");
+            };
+
+            const deleteClip = (id) => setClips(clips.filter(c => c.id !== id));
+            
+            const jumpToClip = (start) => {
+                if (videoRef.current) {
+                    videoRef.current.currentTime = start;
+                    videoRef.current.play();
+                    setIsPlaying(true);
+                }
+            };
+
+            const exportXML = () => {
+                let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n<analise_desportiva>\n';
+                clips.forEach(clip => {
+                    xmlContent += `  <corte id="${clip.id}">\n    <inicio>${clip.start.toFixed(3)}</inicio>\n    <fim>${clip.end.toFixed(3)}</fim>\n    <duracao>${clip.duration.toFixed(3)}</duracao>\n    <etiquetas>${clip.tags.join(',')}</etiquetas>\n    <comentario>${clip.comment}</comentario>\n  </corte>\n`;
+                });
+                xmlContent += '</analise_desportiva>';
+                const blob = new Blob([xmlContent], { type: 'text/xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `analise_jogo_${new Date().toISOString().slice(0,10)}.xml`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            return React.createElement('div', { className: "flex flex-col h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden" },
+                // Header
+                React.createElement('header', { className: "h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900" },
+                    React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement(Scissors, { className: "text-blue-500 w-6 h-6" }),
+                        React.createElement('h1', { className: "text-xl font-bold tracking-tight" }, "ScoutMaster ", React.createElement('span', { className: "text-blue-500" }, "Pro"))
+                    ),
+                    React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement('input', { type: "file", accept: "video/*", onChange: handleFileUpload, ref: fileInputRef, className: "hidden" }),
+                        React.createElement('input', { type: "file", accept: ".xml", onChange: handleXMLUpload, ref: xmlInputRef, className: "hidden" }),
+                        React.createElement('input', { type: "file", accept: ".csv", onChange: handleCSVUpload, ref: csvInputRef, className: "hidden" }),
+                        React.createElement('div', { className: "flex bg-slate-800 rounded-lg p-1 gap-1" },
+                            React.createElement('button', { onClick: () => fileInputRef.current.click(), className: "flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" }, React.createElement(Upload, { size: 16 }), " Vídeo"),
+                            React.createElement('div', { className: "w-px bg-slate-700 my-1" }),
+                            React.createElement('button', { onClick: () => xmlInputRef.current.click(), className: "flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" }, React.createElement(FolderInput, { size: 16 }), " XML"),
+                            React.createElement('div', { className: "w-px bg-slate-700 my-1" }),
+                            React.createElement('button', { onClick: () => csvInputRef.current.click(), className: "flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors text-slate-300 hover:text-white" }, React.createElement(FileSpreadsheet, { size: 16 }), " CSV")
+                        ),
+                        React.createElement('div', { className: "h-6 w-px bg-slate-800 mx-2" }),
+                        React.createElement('button', { onClick: exportXML, disabled: clips.length === 0, className: `flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${clips.length === 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}` }, React.createElement(Download, { size: 16 }), " Exportar")
+                    )
+                ),
+                // Main
+                React.createElement('div', { className: "flex flex-1 overflow-hidden" },
+                    // Left Video
+                    React.createElement('div', { className: "flex-1 flex flex-col p-4 gap-4 relative" },
+                        React.createElement('div', { className: "flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative flex items-center justify-center border border-slate-800 group" },
+                            videoSrc ? React.createElement('video', {
+                                ref: videoRef, src: videoSrc, className: "w-full h-full object-contain",
+                                onClick: togglePlay, onTimeUpdate: handleTimeUpdate, onLoadedMetadata: handleLoadedMetadata
+                            }) : React.createElement('div', { className: "text-center text-slate-500" },
+                                React.createElement(Upload, { className: "w-16 h-16 mx-auto mb-4 opacity-50" }),
+                                React.createElement('p', null, "Carregue um vídeo para começar"),
+                                React.createElement('p', { className: "text-sm mt-2 opacity-60" }, "Suporta MP4, WebM, MOV")
+                            ),
+                            inPoint !== null && React.createElement('div', { className: "absolute top-4 left-4 bg-green-500/90 text-white px-3 py-1 rounded-md text-xs font-bold backdrop-blur-sm animate-pulse" }, `IN: ${formatTime(inPoint)}`)
+                        ),
+                        React.createElement('div', { className: "h-24 bg-slate-900 rounded-xl border border-slate-800 p-4 flex flex-col gap-2" },
+                            React.createElement('input', {
+                                type: "range", min: "0", max: duration || 100, value: currentTime,
+                                onChange: (e) => { const t = parseFloat(e.target.value); setCurrentTime(t); if(videoRef.current) videoRef.current.currentTime = t; },
+                                className: "w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            }),
+                            React.createElement('div', { className: "flex items-center justify-between mt-1" },
+                                React.createElement('div', { className: "flex items-center gap-4" },
+                                    React.createElement('button', { onClick: togglePlay, className: "p-2 bg-slate-800 hover:bg-slate-700 rounded-full" }, isPlaying ? React.createElement(Pause, { size: 20 }) : React.createElement(Play, { size: 20 })),
+                                    React.createElement('span', { className: "text-sm font-mono text-slate-300" }, `${formatTime(currentTime)} / ${formatTime(duration)}`),
+                                    React.createElement('span', { className: "text-xs text-slate-500 ml-2 hidden lg:inline-block" }, "(Espaço: Play/Pause | ←/→ : -3s/+3s)")
+                                ),
+                                React.createElement('div', { className: "flex items-center gap-3" },
+                                    React.createElement('div', { className: "flex flex-col items-center" },
+                                        React.createElement('span', { className: "text-[10px] uppercase text-slate-500 font-bold mb-1" }, "Tecla 'Z'"),
+                                        React.createElement('button', { onClick: setIn, className: `px-6 py-2 rounded-lg font-bold text-sm transition-all ${inPoint !== null ? 'bg-green-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400'}` }, "MARCAR INÍCIO")
+                                    ),
+                                    React.createElement(ChevronRight, { className: "text-slate-600" }),
+                                    React.createElement('div', { className: "flex flex-col items-center" },
+                                        React.createElement('span', { className: "text-[10px] uppercase text-slate-500 font-bold mb-1" }, "Tecla 'X'"),
+                                        React.createElement('button', { onClick: setOutAndOpenModal, className: "px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow-lg" }, "MARCAR FIM")
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    // Right Sidebar
+                    React.createElement('div', { className: "w-80 bg-slate-900 border-l border-slate-800 flex flex-col" },
+                        React.createElement('div', { className: "p-4 border-b border-slate-800 bg-slate-900 z-10" },
+                            React.createElement('h2', { className: "font-bold flex items-center gap-2" }, React.createElement(Tag, { size: 16, className: "text-blue-500" }), `Lista de Cortes (${clips.length})`)
+                        ),
+                        React.createElement('div', { className: "flex-1 overflow-y-auto p-3 space-y-3" },
+                            clips.length === 0 ? React.createElement('div', { className: "text-center mt-10 p-6 opacity-40" },
+                                React.createElement(Scissors, { size: 48, className: "mx-auto mb-4" }),
+                                React.createElement('p', { className: "text-sm" }, "Ainda não há cortes."),
+                                React.createElement('p', { className: "text-xs mt-1" }, "Use 'Z' para início e 'X' para fim.")
+                            ) : clips.map(clip => React.createElement('div', { key: clip.id, className: "bg-slate-800 rounded-lg p-3 border border-slate-700 hover:border-slate-600 group" },
+                                React.createElement('div', { className: "flex justify-between items-start mb-2" },
+                                    React.createElement('span', { className: "bg-slate-950 text-slate-400 text-xs font-mono px-2 py-1 rounded" }, `${formatTime(clip.start)} - ${formatTime(clip.end)}`),
+                                    React.createElement('button', { onClick: () => deleteClip(clip.id), className: "text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100" }, React.createElement(Trash2, { size: 14 }))
+                                ),
+                                React.createElement('div', { className: "flex flex-wrap gap-1 mb-2" },
+                                    clip.tags.map(tag => React.createElement('span', { key: tag, className: "text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700" }, tag))
+                                ),
+                                clip.comment && React.createElement('p', { className: "text-xs text-slate-400 italic mb-2 border-l-2 border-slate-700 pl-2" }, `"${clip.comment}"`),
+                                React.createElement('button', { onClick: () => jumpToClip(clip.start), className: "w-full mt-1 flex items-center justify-center gap-1 text-xs bg-slate-700 hover:bg-slate-600 py-1.5 rounded text-slate-200" }, React.createElement(RotateCcw, { size: 12 }), " Rever Lance")
+                            ))
+                        )
+                    )
+                ),
+                // Modal
+                isModalOpen && React.createElement('div', { className: "fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" },
+                    React.createElement('div', { className: "bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]" },
+                        React.createElement('div', { className: "p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50" },
+                            React.createElement('div', null,
+                                React.createElement('h3', { className: "text-xl font-bold text-white" }, "Classificar Lance"),
+                                React.createElement('p', { className: "text-sm text-slate-400 font-mono mt-1" }, "Intervalo: ", React.createElement('span', { className: "text-blue-400" }, formatTime(inPoint)), " a ", React.createElement('span', { className: "text-blue-400" }, formatTime(outPoint)))
+                            ),
+                            React.createElement('button', { onClick: closeModal, className: "p-2 hover:bg-slate-700 rounded-full" }, React.createElement(X, { size: 24 }))
+                        ),
+                        React.createElement('div', { className: "p-6 overflow-y-auto flex-1" },
+                            React.createElement('div', { className: "space-y-6" },
+                                Object.entries(tagCategories).map(([category, tags]) => React.createElement('div', { key: category },
+                                    React.createElement('h4', { className: "text-xs font-bold text-slate-500 uppercase tracking-wider mb-3" }, category),
+                                    React.createElement('div', { className: "flex flex-wrap gap-3" },
+                                        tags.map(tag => React.createElement(TagButton, {
+                                            key: tag, label: tag, color: getCategoryColor(category),
+                                            selected: currentTags.includes(tag), onClick: () => toggleTag(tag)
+                                        }))
+                                    )
+                                )),
+                                React.createElement('hr', { className: "border-slate-800 my-4" }),
+                                React.createElement('div', { className: "bg-slate-800/50 p-4 rounded-lg border border-slate-700" },
+                                    React.createElement('h4', { className: "text-xs font-bold text-slate-400 uppercase tracking-wider mb-2" }, "Etiqueta Extra"),
+                                    React.createElement('div', { className: "flex gap-2" },
+                                        React.createElement('input', {
+                                            type: "text", ref: customTagInputRef, value: newTagInput,
+                                            onChange: (e) => setNewTagInput(e.target.value), placeholder: "Criar nova...",
+                                            className: "flex-1 bg-slate-950 border border-slate-700 rounded-md px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        }),
+                                        React.createElement('select', {
+                                            value: newTagColor, onChange: (e) => setNewTagColor(e.target.value),
+                                            className: "bg-slate-950 border border-slate-700 rounded-md px-2 text-sm text-slate-300 outline-none"
+                                        },
+                                            React.createElement('option', { value: "blue" }, "Geral"),
+                                            React.createElement('option', { value: "green" }, "Verde"),
+                                            React.createElement('option', { value: "red" }, "Vermelho"),
+                                            React.createElement('option', { value: "yellow" }, "Amarelo")
+                                        ),
+                                        React.createElement('button', { onClick: addCustomTag, className: "bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-md" }, React.createElement(Plus, { size: 18 }))
+                                    )
+                                ),
+                                customTags.length > 0 && React.createElement('div', null,
+                                    React.createElement('h4', { className: "text-xs font-bold text-yellow-500 uppercase tracking-wider mb-3 mt-2" }, "Personalizadas"),
+                                    React.createElement('div', { className: "flex flex-wrap gap-3" },
+                                        customTags.map((tag, idx) => React.createElement(TagButton, {
+                                            key: `custom-${idx}`, label: tag.label, color: tag.color,
+                                            selected: currentTags.includes(tag.label), onClick: () => toggleTag(tag.label),
+                                            onDelete: () => removeCustomTag(tag.label)
+                                        }))
+                                    )
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('h4', { className: "text-xs font-bold text-slate-500 uppercase tracking-wider mb-3" }, "Notas"),
+                                    React.createElement('textarea', {
+                                        placeholder: "Observações táticas...", value: comment,
+                                        onChange: (e) => setComment(e.target.value),
+                                        className: "w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none h-20 text-sm"
+                                    })
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: "p-4 bg-slate-800/50 border-t border-slate-800 flex justify-end gap-3" },
+                            React.createElement('button', { onClick: closeModal, className: "px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 font-medium" }, "Cancelar"),
+                            React.createElement('button', { onClick: saveClip, className: "px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-lg flex items-center gap-2" }, React.createElement(Save, { size: 18 }), " Guardar Corte")
+                        )
+                    )
+                )
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>
