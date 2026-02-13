@@ -85,7 +85,7 @@
         const HandballCourt = ({ selectedZones, onToggleZone }) => {
             const isSelected = (z) => selectedZones.includes(z);
             const getClass = (z) => `cursor-pointer transition-all duration-200 hover:opacity-80 ${isSelected(z) ? 'fill-yellow-500 stroke-yellow-300 stroke-2' : 'fill-slate-800/80 stroke-slate-600 hover:fill-slate-700'}`;
-            const getTextClass = "text-[10px] fill-white pointer-events-none select-none font-bold opacity-60";
+            const getTextClass = "text-[12px] fill-white pointer-events-none select-none font-bold opacity-80";
 
             return React.createElement('div', { className: "relative w-full aspect-[16/9] bg-slate-900 rounded-lg border border-slate-700 overflow-hidden shadow-inner" },
                 React.createElement('svg', { viewBox: "0 0 400 220", className: "w-full h-full" },
@@ -93,39 +93,39 @@
                     React.createElement('rect', { x: "0", y: "0", width: "400", height: "220", fill: "#0f172a" }),
                     
                     // --- ZONAS DE LONGA DISTÂNCIA (>9m) ---
-                    // Zona 6: Longa Distância LE
-                    React.createElement('path', { d: "M 0,0 L 133,0 L 133,90 L 0,90 Z", className: getClass("Zona 6"), onClick: () => onToggleZone("Zona 6") }),
-                    React.createElement('text', { x: "40", y: "45", className: getTextClass }, "Z6 (Ext)"),
+                    // Esquerda Visual (Agora Zona 8 - LD Longa)
+                    React.createElement('path', { d: "M 0,0 L 133,0 L 133,90 L 0,90 Z", className: getClass("Zona 8"), onClick: () => onToggleZone("Zona 8") }),
+                    React.createElement('text', { x: "55", y: "50", className: getTextClass }, "Z8"),
 
-                    // Zona 7: Longa Distância Central
+                    // Centro Visual (Mantém Zona 7 - Central Longa)
                     React.createElement('path', { d: "M 133,0 L 266,0 L 266,90 L 133,90 Z", className: getClass("Zona 7"), onClick: () => onToggleZone("Zona 7") }),
-                    React.createElement('text', { x: "185", y: "45", className: getTextClass }, "Z7 (Ext)"),
+                    React.createElement('text', { x: "190", y: "50", className: getTextClass }, "Z7"),
 
-                    // Zona 8: Longa Distância LD
-                    React.createElement('path', { d: "M 266,0 L 400,0 L 400,90 L 266,90 Z", className: getClass("Zona 8"), onClick: () => onToggleZone("Zona 8") }),
-                    React.createElement('text', { x: "320", y: "45", className: getTextClass }, "Z8 (Ext)"),
+                    // Direita Visual (Agora Zona 6 - LE Longa)
+                    React.createElement('path', { d: "M 266,0 L 400,0 L 400,90 L 266,90 Z", className: getClass("Zona 6"), onClick: () => onToggleZone("Zona 6") }),
+                    React.createElement('text', { x: "325", y: "50", className: getTextClass }, "Z6"),
 
                     // --- ZONAS DE PONTA (Cantos) ---
-                    // Zona 1: Ponta Esquerda
-                    React.createElement('path', { d: "M 0,90 L 60,90 L 60,220 L 0,220 Z", className: getClass("Zona 1"), onClick: () => onToggleZone("Zona 1") }),
-                    React.createElement('text', { x: "15", y: "160", className: getTextClass }, "Z1"),
+                    // Esquerda Visual (Agora Zona 5 - PD Ponta Direita)
+                    React.createElement('path', { d: "M 0,90 L 60,90 L 60,220 L 0,220 Z", className: getClass("Zona 5"), onClick: () => onToggleZone("Zona 5") }),
+                    React.createElement('text', { x: "20", y: "160", className: getTextClass }, "Z5"),
 
-                    // Zona 5: Ponta Direita
-                    React.createElement('path', { d: "M 340,90 L 400,90 L 400,220 L 340,220 Z", className: getClass("Zona 5"), onClick: () => onToggleZone("Zona 5") }),
-                    React.createElement('text', { x: "360", y: "160", className: getTextClass }, "Z5"),
+                    // Direita Visual (Agora Zona 1 - PE Ponta Esquerda)
+                    React.createElement('path', { d: "M 340,90 L 400,90 L 400,220 L 340,220 Z", className: getClass("Zona 1"), onClick: () => onToggleZone("Zona 1") }),
+                    React.createElement('text', { x: "360", y: "160", className: getTextClass }, "Z1"),
 
                     // --- ZONAS CENTRAIS (6-9m e Penetração) ---
-                    // Zona 2: Lateral Esquerda
-                    React.createElement('path', { d: "M 60,90 L 140,90 L 140,220 L 60,220 Z", className: getClass("Zona 2"), onClick: () => onToggleZone("Zona 2") }),
-                    React.createElement('text', { x: "90", y: "150", className: getTextClass }, "Z2 (LE)"),
+                    // Esquerda Visual (Agora Zona 4 - LD Lateral Direito)
+                    React.createElement('path', { d: "M 60,90 L 140,90 L 140,220 L 60,220 Z", className: getClass("Zona 4"), onClick: () => onToggleZone("Zona 4") }),
+                    React.createElement('text', { x: "90", y: "155", className: getTextClass }, "Z4"),
 
-                    // Zona 3: Central
+                    // Centro Visual (Mantém Zona 3 - Central)
                     React.createElement('path', { d: "M 140,90 L 260,90 L 260,220 L 140,220 Z", className: getClass("Zona 3"), onClick: () => onToggleZone("Zona 3") }),
-                    React.createElement('text', { x: "190", y: "150", className: getTextClass }, "Z3 (Cen)"),
+                    React.createElement('text', { x: "190", y: "155", className: getTextClass }, "Z3"),
 
-                    // Zona 4: Lateral Direita
-                    React.createElement('path', { d: "M 260,90 L 340,90 L 340,220 L 260,220 Z", className: getClass("Zona 4"), onClick: () => onToggleZone("Zona 4") }),
-                    React.createElement('text', { x: "280", y: "150", className: getTextClass }, "Z4 (LD)"),
+                    // Direita Visual (Agora Zona 2 - LE Lateral Esquerdo)
+                    React.createElement('path', { d: "M 260,90 L 340,90 L 340,220 L 260,220 Z", className: getClass("Zona 2"), onClick: () => onToggleZone("Zona 2") }),
+                    React.createElement('text', { x: "290", y: "155", className: getTextClass }, "Z2"),
 
                     // --- ELEMENTOS VISUAIS (Não clicáveis) ---
                     // Linha de 9m (Tracejada visual)
