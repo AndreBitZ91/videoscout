@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScoutMaster Pro</title>
+    <title>AT Analyzer</title>
     
     <!-- Tailwind CSS para o design -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -279,7 +279,7 @@
                 // Cabeçalho XSPF
                 let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
                 xml += '<playlist xmlns="http://xspf.org/ns/0/" xmlns:vlc="http://www.videolan.org/vlc/playlist/ns/0/" version="1">\n';
-                xml += '  <title>Destaques ScoutMaster</title>\n';
+                xml += '  <title>Destaques AT Analyzer</title>\n';
                 xml += '  <trackList>\n';
 
                 clips.forEach((c, i) => {
@@ -713,7 +713,7 @@
                 React.createElement('header', { className: "h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900" },
                     React.createElement('div', { className: "flex items-center gap-2" },
                         React.createElement(Scissors, { className: "text-blue-500 w-6 h-6" }),
-                        React.createElement('h1', { className: "text-xl font-bold tracking-tight" }, "ScoutMaster ", React.createElement('span', { className: "text-blue-500" }, "Pro"))
+                        React.createElement('h1', { className: "text-xl font-bold tracking-tight" }, "AT ", React.createElement('span', { className: "text-blue-500" }, "Analyzer"))
                     ),
                     React.createElement('div', { className: "flex items-center gap-2" },
                         React.createElement('button', { onClick: () => setShowStatsModal(true), className: "flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-700 mr-2 text-purple-400" }, React.createElement(BarChart2, { size: 16 }), "Estatísticas"),
