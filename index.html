@@ -385,8 +385,11 @@
             const [selectedClips, setSelectedClips] = useState([]);
             const [editingClipId, setEditingClipId] = useState(null); // NOVO: Estado para edição
             
-            // Dados Equipas
-            const [teamDatabase, setTeamDatabase] = useState([]); 
+            // Dados Equipas (Agora com persistência)
+            const [teamDatabase, setTeamDatabase] = useState(() => {
+                const saved = localStorage.getItem('at_analyzer_teams');
+                return saved ? JSON.parse(saved) : [];
+            });
             const [matchInfo, setMatchInfo] = useState({
                 teamAId: null, teamBId: null,
                 teamA: "Equipa Casa", teamB: "Equipa Fora",
@@ -394,6 +397,11 @@
             });
             const [activeTeam, setActiveTeam] = useState('A'); 
             
+            // --- Persistência Automática de Equipas ---
+            useEffect(() => {
+                localStorage.setItem('at_analyzer_teams', JSON.stringify(teamDatabase));
+            }, [teamDatabase]);
+
             // --- Marcadores de Tempo de Jogo ---
             const [matchMarkers, setMatchMarkers] = useState({
                 start1: null, end1: null,
@@ -718,7 +726,7 @@
                 reader.readAsText(file);
             };
             const selectTeamFromDB = (side, teamId) => {
-                if (teamId === "new") { setMatchInfo(prev => ({ ...prev, [side==='A'?'teamA':'teamB']: "Nova Equipa", [side==='A'?'playersA':'playersB']: [] })); return; }
+                if (teamId === "new") { setMatchInfo(prev => ({ ...prev, [side==='A'?'teamA':'teamB']: "Nova Equipa", [side==='A'?'playersA':'playersB']: [], [side==='A'?'teamAId':'teamBId']: 'new' })); return; }
                 const team = teamDatabase.find(t => t.id.toString() === teamId.toString());
                 if (team) { setMatchInfo(prev => ({ ...prev, [side==='A'?'teamAId':'teamBId']: team.id, [side==='A'?'teamA':'teamB']: team.name, [side==='A'?'playersA':'playersB']: team.players || [] })); }
             };
@@ -731,14 +739,81 @@
                 if(side === 'A') setTempPlayerA({num:'', name:'', pos:''}); else setTempPlayerB({num:'', name:'', pos:''});
             };
             const removePlayer = (side, id) => { setMatchInfo(prev => { const key = side === 'A' ? 'playersA' : 'playersB'; return { ...prev, [key]: prev[key].filter(p => p.id !== id) }; }); };
+            
+            // --- Novas Funções de Base de Dados ---
+            const saveTeamToDB = (side) => {
+                const isA = side === 'A';
+                const teamId = isA ? matchInfo.teamAId : matchInfo.teamBId;
+                const name = isA ? matchInfo.teamA : matchInfo.teamB;
+                const players = isA ? matchInfo.playersA : matchInfo.playersB;
+
+                if (!name) return alert("Nome da equipa é obrigatório");
+
+                const newTeamData = {
+                    id: teamId && teamId !== 'new' ? teamId : Date.now(),
+                    name,
+                    players,
+                    updatedAt: new Date().toISOString()
+                };
+
+                setTeamDatabase(prev => {
+                    const exists = prev.find(t => t.id === newTeamData.id);
+                    if (exists) {
+                        return prev.map(t => t.id === newTeamData.id ? newTeamData : t);
+                    } else {
+                        return [...prev, newTeamData];
+                    }
+                });
+
+                // Se era nova, atualiza o ID na matchInfo
+                if (!teamId || teamId === 'new') {
+                     setMatchInfo(prev => ({
+                         ...prev,
+                         [isA ? 'teamAId' : 'teamBId']: newTeamData.id
+                     }));
+                }
+                
+                alert(`Equipa "${name}" guardada na Base de Dados!`);
+            };
+
+            const deleteTeamFromDB = (side) => {
+                const isA = side === 'A';
+                const teamId = isA ? matchInfo.teamAId : matchInfo.teamBId;
+                
+                if (!teamId || teamId === 'new') return alert("Selecione uma equipa existente para apagar.");
+                if (!confirm("Tem a certeza que quer apagar esta equipa da base de dados?")) return;
+
+                setTeamDatabase(prev => prev.filter(t => t.id !== teamId));
+                
+                // Reset da seleção
+                setMatchInfo(prev => ({ ...prev, [isA ? 'teamAId' : 'teamBId']: 'new' }));
+            };
+
             const loadDatabase = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (evt) => { try { const data = JSON.parse(evt.target.result); if (Array.isArray(data.teams)) { setTeamDatabase(prev => [...prev, ...data.teams]); alert("Equipas carregadas!"); } } catch (e) { alert("Erro"); } };
+                reader.onload = (evt) => { 
+                    try { 
+                        const data = JSON.parse(evt.target.result); 
+                        if (Array.isArray(data.teams)) { 
+                            setTeamDatabase(prev => {
+                                // Merge inteligente: mantém existentes, adiciona novos ou atualiza se mesmo ID
+                                const newDB = [...prev];
+                                data.teams.forEach(importedTeam => {
+                                    const index = newDB.findIndex(t => t.id === importedTeam.id);
+                                    if (index >= 0) newDB[index] = importedTeam;
+                                    else newDB.push(importedTeam);
+                                });
+                                return newDB;
+                            }); 
+                            alert("Equipas importadas com sucesso!"); 
+                        } 
+                    } catch (e) { alert("Erro ao importar ficheiro."); } 
+                };
                 reader.readAsText(file);
             };
-            const exportDatabase = () => { const blob = new Blob([JSON.stringify({version:"1.0", teams: teamDatabase})], {type:'application/json'}); const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="equipas.json"; document.body.appendChild(a); a.click(); a.remove(); };
+            const exportDatabase = () => { const blob = new Blob([JSON.stringify({version:"1.0", teams: teamDatabase})], {type:'application/json'}); const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="equipas_at_analyzer.json"; document.body.appendChild(a); a.click(); a.remove(); };
             const handleComboImport = (e) => { const f = e.target.files[0]; if(f) { const r = new FileReader(); r.onload = (ev) => setCombinations(prev => [...prev, ...JSON.parse(ev.target.result)]); r.readAsText(f); } };
             const exportCombinations = () => { const b = new Blob([JSON.stringify(combinations)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download="taticas.json"; document.body.appendChild(a); a.click(); a.remove(); };
 
@@ -867,7 +942,10 @@
                             React.createElement('div', null,
                                 React.createElement('div', { className: "flex justify-between items-center mb-2" },
                                     React.createElement('h3', { className: "text-blue-400 font-bold" }, "Equipa A"),
-                                    React.createElement('span', { className: "text-xs text-slate-500" }, "Casa")
+                                    React.createElement('div', { className: "flex items-center gap-2" },
+                                        React.createElement('button', { onClick: () => saveTeamToDB('A'), title: "Guardar na BD", className: "p-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white" }, React.createElement(Save, { size: 14 })),
+                                        React.createElement('button', { onClick: () => deleteTeamFromDB('A'), title: "Apagar da BD", className: "p-1.5 bg-slate-800 hover:bg-red-900 text-slate-400 hover:text-red-400 rounded" }, React.createElement(Trash2, { size: 14 }))
+                                    )
                                 ),
                                 React.createElement('select', { 
                                     className: "w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm mb-2 text-slate-300",
@@ -903,7 +981,10 @@
                             React.createElement('div', null,
                                 React.createElement('div', { className: "flex justify-between items-center mb-2" },
                                     React.createElement('h3', { className: "text-red-400 font-bold" }, "Equipa B"),
-                                    React.createElement('span', { className: "text-xs text-slate-500" }, "Fora")
+                                    React.createElement('div', { className: "flex items-center gap-2" },
+                                        React.createElement('button', { onClick: () => saveTeamToDB('B'), title: "Guardar na BD", className: "p-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white" }, React.createElement(Save, { size: 14 })),
+                                        React.createElement('button', { onClick: () => deleteTeamFromDB('B'), title: "Apagar da BD", className: "p-1.5 bg-slate-800 hover:bg-red-900 text-slate-400 hover:text-red-400 rounded" }, React.createElement(Trash2, { size: 14 }))
+                                    )
                                 ),
                                 React.createElement('select', { 
                                     className: "w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm mb-2 text-slate-300",
