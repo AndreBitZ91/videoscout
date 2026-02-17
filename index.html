@@ -319,6 +319,56 @@
             return Math.min(Math.max(xg, 0.01), 0.99);
         };
 
+        // --- Tabela Genérica de Estatísticas ---
+        const StatTable = ({ title, data, type }) => {
+            return React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden mb-4" },
+                React.createElement('div', { className: "bg-slate-700/50 p-3 font-bold text-sm text-slate-200 uppercase tracking-wider border-b border-slate-700" }, title),
+                React.createElement('table', { className: "w-full text-left text-xs text-slate-400" },
+                    React.createElement('thead', { className: "bg-slate-900/50 text-slate-500 font-medium uppercase" },
+                        React.createElement('tr', null,
+                            React.createElement('th', { className: "p-3" }, "#"),
+                            React.createElement('th', { className: "p-3" }, "Nome"),
+                            type === 'player' ? React.createElement(React.Fragment, null,
+                                React.createElement('th', { className: "p-3 text-center" }, "Remates"),
+                                React.createElement('th', { className: "p-3 text-center" }, "Golos"),
+                                React.createElement('th', { className: "p-3 text-center" }, "% Efic."),
+                                React.createElement('th', { className: "p-3 text-center text-blue-400" }, "xG"),
+                                React.createElement('th', { className: "p-3 text-center text-red-400" }, "Falhas")
+                            ) : React.createElement(React.Fragment, null,
+                                React.createElement('th', { className: "p-3 text-center" }, "Rem. Rec."),
+                                React.createElement('th', { className: "p-3 text-center" }, "Defesas"),
+                                React.createElement('th', { className: "p-3 text-center" }, "Golos"),
+                                React.createElement('th', { className: "p-3 text-center" }, "% Efic."),
+                                React.createElement('th', { className: "p-3 text-center text-purple-400" }, "xD")
+                            )
+                        )
+                    ),
+                    React.createElement('tbody', { className: "divide-y divide-slate-700" },
+                        data.map((row, i) => 
+                            React.createElement('tr', { key: i, className: "hover:bg-slate-700/30 transition-colors" },
+                                React.createElement('td', { className: "p-3 font-mono" }, row.number || '-'),
+                                React.createElement('td', { className: "p-3 font-medium text-slate-200" }, row.name),
+                                type === 'player' ? React.createElement(React.Fragment, null,
+                                    React.createElement('td', { className: "p-3 text-center" }, row.shots),
+                                    React.createElement('td', { className: "p-3 text-center font-bold text-green-400" }, row.goals),
+                                    React.createElement('td', { className: "p-3 text-center" }, row.shots > 0 ? Math.round((row.goals/row.shots)*100) : 0, "%"),
+                                    React.createElement('td', { className: "p-3 text-center font-mono text-blue-400" }, row.xG.toFixed(2)),
+                                    React.createElement('td', { className: "p-3 text-center text-red-400" }, row.turnovers)
+                                ) : React.createElement(React.Fragment, null,
+                                    React.createElement('td', { className: "p-3 text-center" }, row.shotsFaced),
+                                    React.createElement('td', { className: "p-3 text-center font-bold text-green-400" }, row.saves),
+                                    React.createElement('td', { className: "p-3 text-center text-red-400" }, row.goalsConceded),
+                                    React.createElement('td', { className: "p-3 text-center" }, row.shotsFaced > 0 ? Math.round((row.saves/row.shotsFaced)*100) : 0, "%"),
+                                    React.createElement('td', { className: "p-3 text-center font-mono text-purple-400" }, row.xGFaced.toFixed(2))
+                                )
+                            )
+                        ),
+                        data.length === 0 && React.createElement('tr', null, React.createElement('td', { colSpan: "7", className: "p-4 text-center text-slate-600 italic" }, "Sem dados registados"))
+                    )
+                )
+            );
+        };
+
         // --- Componente Principal ---
         function App() {
             // --- Estados Base ---
@@ -422,7 +472,7 @@
                         const xGVal = calculateClipXG(c.tags);
                         c.players.forEach(p => {
                             const key = p.id; 
-                            if (!statsObj[key]) { statsObj[key] = { id: p.id, name: `${p.number} - ${p.name.split(' ')[0]}`, number: p.number, shots: 0, goals: 0, xG: 0, turnovers: 0, interceptions: 0 }; }
+                            if (!statsObj[key]) { statsObj[key] = { id: p.id, name: `${p.name.split(' ')[0]}`, number: p.number, shots: 0, goals: 0, xG: 0, turnovers: 0, interceptions: 0 }; }
                             if (isShot) { statsObj[key].shots += 1; statsObj[key].xG += xGVal; }
                             if (isGoal) statsObj[key].goals += 1;
                             if (isTurnover) statsObj[key].turnovers += 1;
@@ -443,7 +493,7 @@
                         if (!statsObj[key]) {
                             const playerList = teamGk === 'A' ? matchInfo.playersA : matchInfo.playersB;
                             const player = playerList.find(p => p.id === key);
-                            statsObj[key] = { id: key, name: player ? `${player.number} - ${player.name.split(' ')[0]}` : "Desconhecido", shotsFaced: 0, goalsConceded: 0, saves: 0, xGFaced: 0, };
+                            statsObj[key] = { id: key, name: player ? player.name.split(' ')[0] : "Desconhecido", number: player ? player.number : "?", shotsFaced: 0, goalsConceded: 0, saves: 0, xGFaced: 0, };
                         }
                         if (isShotFaced) { statsObj[key].shotsFaced += 1; statsObj[key].xGFaced += xGVal; }
                         if (isGoal) statsObj[key].goalsConceded += 1;
@@ -758,7 +808,7 @@
                                     React.createElement('span', { className: "text-2xl font-bold text-white" }, (stats.xGA + stats.xGB).toFixed(2))
                                 )
                             ),
-                            // (Resto das estatísticas...)
+                            
                              React.createElement('div', { className: "mb-8" },
                                 React.createElement('h4', { className: "text-slate-300 font-bold mb-4 flex items-center gap-2" }, React.createElement(MapPin, { size: 18 }), "Eficiência de Remate por Zona (Golos/Remates)"),
                                 React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8" },
@@ -772,6 +822,31 @@
                                     )
                                 )
                             ),
+
+                            // --- NOVAS TABELAS DE ESTATÍSTICAS ---
+                            React.createElement('div', { className: "mb-8" },
+                                React.createElement('h4', { className: "text-slate-300 font-bold mb-4 flex items-center gap-2" }, React.createElement(Users, { size: 18 }), "Estatísticas Individuais - Jogadores"),
+                                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8" },
+                                    React.createElement('div', null,
+                                        React.createElement(StatTable, { title: matchInfo.teamA, data: stats.playersStatsA, type: "player" })
+                                    ),
+                                    React.createElement('div', null,
+                                        React.createElement(StatTable, { title: matchInfo.teamB, data: stats.playersStatsB, type: "player" })
+                                    )
+                                )
+                            ),
+
+                            React.createElement('div', { className: "mb-8" },
+                                React.createElement('h4', { className: "text-slate-300 font-bold mb-4 flex items-center gap-2" }, React.createElement(Shield, { size: 18 }), "Estatísticas Individuais - Guarda-Redes"),
+                                React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8" },
+                                    React.createElement('div', null,
+                                        React.createElement(StatTable, { title: matchInfo.teamA, data: stats.gkStatsA, type: "gk" })
+                                    ),
+                                    React.createElement('div', null,
+                                        React.createElement(StatTable, { title: matchInfo.teamB, data: stats.gkStatsB, type: "gk" })
+                                    )
+                                )
+                            )
                         )
                     )
                 ),
