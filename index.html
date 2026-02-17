@@ -170,7 +170,7 @@
             );
         };
 
-        // --- COMPONENTE MATCH TIMELINE ---
+        // --- COMPONENTE MATCH TIMELINE (Horizontal) ---
         const MatchTimeline = ({ clips, matchMarkers, teamA, teamB }) => {
             const { start1, end1, start2, end2 } = matchMarkers;
             
@@ -188,60 +188,113 @@
                 return gameSec / 60; 
             };
 
-            const width = 1000;
-            const height = 250;
-            const timeScale = width / 60;
+            const width = 1200;
+            const height = 180;
+            const yCenter = height / 2;
+            const timeScale = width / 60; // 60 minutos
 
-            const renderEvents = (team) => {
+            const renderStateStrip = (team, yStart, barHeight) => {
+                // Fundo Base (Cinza - Igualdade)
+                const base = React.createElement('rect', { x: 0, y: yStart, width: width, height: barHeight, fill: "#64748b", opacity: 0.3 }); // Slate-500
+                
+                // Segmentos coloridos baseados nos clips
+                const segments = clips.filter(c => c.team === team).map(clip => {
+                    const startMin = getGameMinute(clip.start);
+                    const endMin = getGameMinute(clip.end);
+                    if (startMin < 0 || startMin > 65) return null;
+                    const w = (endMin - startMin) * timeScale;
+                    const x = startMin * timeScale;
+
+                    let color = null;
+                    if (clip.tags.includes("Superioridade")) color = "#22c55e"; // Verde
+                    else if (clip.tags.includes("Inferioridade")) color = "#ef4444"; // Vermelho
+                    else if (clip.tags.includes("Igualdade s/GR") || clip.tags.includes("Baliza Aberta")) color = "#f97316"; // Laranja
+                    else if (clip.tags.includes("7x6")) color = "#3b82f6"; // Azul
+
+                    if (color) {
+                        return React.createElement('rect', { key: `st-${clip.id}`, x: x, y: yStart, width: Math.max(w, 2), height: barHeight, fill: color, stroke: "#0f172a", strokeWidth: 0.5 });
+                    }
+                    return null;
+                });
+
+                return React.createElement('g', null, base, segments);
+            };
+
+            const renderEventMarkers = (team, yPos) => {
                 return clips.filter(c => c.team === team).map(clip => {
                     const minute = getGameMinute(clip.start);
                     if (minute < 0 || minute > 65) return null;
                     const cx = minute * timeScale;
-                    let elements = [];
+                    
                     const isGoal = clip.tags.includes("Golo");
-                    const isMiss = clip.tags.some(t => ["Defesa", "Fora", "Poste"].includes(t));
+                    const isSave = clip.tags.includes("Defesa");
+                    const isOut = clip.tags.includes("Fora") || clip.tags.includes("Poste");
+                    const is7m = clip.tags.includes("7 Metros");
                     const is2Min = clip.tags.includes("2min") || clip.tags.includes("2min + 7 metros");
-                    const isSup = clip.tags.includes("Superioridade");
-                    const isInf = clip.tags.includes("Inferioridade");
-                    const is7x6 = clip.tags.includes("7x6");
-                    const isEmptyGoal = clip.tags.includes("Baliza Aberta") || clip.tags.includes("Igualdade s/GR");
-                    const yBase = team === 'A' ? 80 : 170; 
 
+                    if (isGoal) {
+                        return React.createElement('circle', { key: `ev-${clip.id}`, cx: cx, cy: yPos, r: 5, fill: "#4ade80", stroke: "#0f172a", strokeWidth: 1, title: "Golo" });
+                    }
+                    if (isSave) {
+                        return React.createElement('circle', { key: `ev-${clip.id}`, cx: cx, cy: yPos, r: 5, fill: "#ef4444", stroke: "#0f172a", strokeWidth: 1, title: "Defesa" });
+                    }
+                    if (isOut) {
+                         return React.createElement('circle', { key: `ev-${clip.id}`, cx: cx, cy: yPos, r: 4, fill: "none", stroke: "#ef4444", strokeWidth: 2, title: "Fora" });
+                    }
+                    if (is7m) {
+                        // Losango Roxo
+                        return React.createElement('rect', { key: `ev-${clip.id}`, x: cx - 4, y: yPos - 4, width: 8, height: 8, fill: "#a855f7", transform: `rotate(45 ${cx} ${yPos})`, stroke: "#0f172a", strokeWidth: 1, title: "7 Metros" });
+                    }
                     if (is2Min) {
-                        elements.push(React.createElement('rect', { key: `2min-${clip.id}`, x: cx, y: team === 'A' ? 20 : 130, width: 2 * timeScale, height: 20, fill: "rgba(234, 179, 8, 0.6)", rx: 2, title: "2 Minutos" }));
+                        // Quadrado Amarelo
+                         return React.createElement('rect', { key: `ev-${clip.id}`, x: cx - 5, y: yPos - 5, width: 10, height: 10, fill: "#eab308", stroke: "#0f172a", strokeWidth: 1, title: "2 Min" });
                     }
-                    let situationColor = null;
-                    if (isSup) situationColor = "#22c55e"; 
-                    if (isInf) situationColor = "#ef4444"; 
-                    if (is7x6) situationColor = "#a855f7"; 
-                    if (isEmptyGoal) situationColor = "#f97316"; 
-                    if (situationColor) {
-                        elements.push(React.createElement('rect', { key: `sit-${clip.id}`, x: cx - 2, y: yBase + 15, width: 4, height: 4, fill: situationColor, rx: 1 }));
-                    }
-                    if (isGoal || isMiss) {
-                        elements.push(React.createElement('circle', { key: `shot-${clip.id}`, cx: cx, cy: yBase, r: isGoal ? 5 : 3, fill: isGoal ? "#4ade80" : "#f87171", stroke: "#0f172a", strokeWidth: 1, className: "hover:scale-150 transition-transform cursor-pointer", title: `${formatTime(clip.start)} - ${clip.tags.join(', ')}` }));
-                    }
-                    return elements;
+                    return null;
                 });
             };
 
             return React.createElement('div', { className: "w-full overflow-x-auto bg-slate-900 rounded-xl border border-slate-700 p-4" },
                 React.createElement('svg', { viewBox: `0 0 ${width} ${height}`, className: "w-full h-full min-w-[800px]" },
                     React.createElement('rect', { x: 0, y: 0, width: width, height: height, fill: "#0f172a" }),
+                    
+                    // Grelha de Tempo (cada 5 min)
                     Array.from({ length: 13 }).map((_, i) => { 
                         const x = i * 5 * timeScale;
-                        return React.createElement('g', { key: i }, React.createElement('line', { x1: x, y1: 20, x2: x, y2: height - 20, stroke: "#334155", strokeDasharray: "4,4", strokeWidth: 1 }), React.createElement('text', { x: x, y: height - 5, textAnchor: "middle", fontSize: 10, fill: "#64748b" }, `${i*5}'`));
+                        return React.createElement('g', { key: i }, 
+                            React.createElement('line', { x1: x, y1: 10, x2: x, y2: height - 10, stroke: "#334155", strokeDasharray: "2,2", strokeWidth: 1 }), 
+                            React.createElement('text', { x: x, y: yCenter + 4, textAnchor: "middle", fontSize: 10, fill: "#94a3b8", fontWeight: "bold" }, `${i*5}'`)
+                        );
                     }),
-                    React.createElement('line', { x1: 30 * timeScale, y1: 10, x2: 30 * timeScale, y2: height - 10, stroke: "#94a3b8", strokeWidth: 2 }),
-                    React.createElement('text', { x: 10, y: 70, fontSize: 12, fontWeight: "bold", fill: "#60a5fa" }, teamA),
-                    React.createElement('text', { x: 10, y: 160, fontSize: 12, fontWeight: "bold", fill: "#f87171" }, teamB),
-                    React.createElement('g', { transform: "translate(800, 10)" },
-                         React.createElement('rect', { x: 0, y: 0, width: 6, height: 6, fill: "#22c55e", rx: 1 }), React.createElement('text', { x: 10, y: 5, fontSize: 8, fill: "#94a3b8" }, "Sup"),
-                         React.createElement('rect', { x: 30, y: 0, width: 6, height: 6, fill: "#ef4444", rx: 1 }), React.createElement('text', { x: 40, y: 5, fontSize: 8, fill: "#94a3b8" }, "Inf"),
-                         React.createElement('rect', { x: 60, y: 0, width: 6, height: 6, fill: "#a855f7", rx: 1 }), React.createElement('text', { x: 70, y: 5, fontSize: 8, fill: "#94a3b8" }, "7x6"),
-                         React.createElement('rect', { x: 90, y: 0, width: 6, height: 6, fill: "#f97316", rx: 1 }), React.createElement('text', { x: 100, y: 5, fontSize: 8, fill: "#94a3b8" }, "S/GR")
-                    ),
-                    renderEvents('A'), renderEvents('B')
+
+                    // Linha Central
+                    React.createElement('line', { x1: 0, y1: yCenter, x2: width, y2: yCenter, stroke: "#475569", strokeWidth: 1 }),
+
+                    // --- EQUIPA A (CASA) - EM CIMA ---
+                    React.createElement('text', { x: 10, y: yCenter - 45, fontSize: 12, fontWeight: "bold", fill: "#60a5fa" }, teamA),
+                    renderStateStrip('A', yCenter - 30, 20),
+                    renderEventMarkers('A', yCenter - 20),
+
+                    // --- EQUIPA B (FORA) - EM BAIXO ---
+                    React.createElement('text', { x: 10, y: yCenter + 55, fontSize: 12, fontWeight: "bold", fill: "#f87171" }, teamB),
+                    renderStateStrip('B', yCenter + 10, 20),
+                    renderEventMarkers('B', yCenter + 20),
+
+                    // Legenda
+                    React.createElement('g', { transform: "translate(900, 10)" },
+                        // Estados
+                        React.createElement('rect', { x: 0, y: 0, width: 10, height: 10, fill: "#64748b", opacity: 0.5 }), React.createElement('text', { x: 15, y: 8, fontSize: 9, fill: "#cbd5e1" }, "Igualdade"),
+                        React.createElement('rect', { x: 70, y: 0, width: 10, height: 10, fill: "#22c55e" }), React.createElement('text', { x: 85, y: 8, fontSize: 9, fill: "#cbd5e1" }, "Sup"),
+                        React.createElement('rect', { x: 120, y: 0, width: 10, height: 10, fill: "#ef4444" }), React.createElement('text', { x: 135, y: 8, fontSize: 9, fill: "#cbd5e1" }, "Inf"),
+                        React.createElement('rect', { x: 160, y: 0, width: 10, height: 10, fill: "#f97316" }), React.createElement('text', { x: 175, y: 8, fontSize: 9, fill: "#cbd5e1" }, "S/GR"),
+                        React.createElement('rect', { x: 210, y: 0, width: 10, height: 10, fill: "#3b82f6" }), React.createElement('text', { x: 225, y: 8, fontSize: 9, fill: "#cbd5e1" }, "7x6"),
+                        
+                        // Eventos
+                        React.createElement('circle', { cx: 5, cy: 20, r: 4, fill: "#4ade80" }), React.createElement('text', { x: 15, y: 23, fontSize: 9, fill: "#cbd5e1" }, "Golo"),
+                        React.createElement('circle', { cx: 50, cy: 20, r: 4, fill: "#ef4444" }), React.createElement('text', { x: 60, y: 23, fontSize: 9, fill: "#cbd5e1" }, "Defesa"),
+                        React.createElement('circle', { cx: 100, cy: 20, r: 3, fill: "none", stroke: "#ef4444", strokeWidth: 1.5 }), React.createElement('text', { x: 110, y: 23, fontSize: 9, fill: "#cbd5e1" }, "Fora"),
+                        React.createElement('rect', { x: 140, y: 16, width: 6, height: 6, fill: "#a855f7", transform: "rotate(45 143 19)" }), React.createElement('text', { x: 150, y: 23, fontSize: 9, fill: "#cbd5e1" }, "7m"),
+                        React.createElement('rect', { x: 180, y: 16, width: 8, height: 8, fill: "#eab308" }), React.createElement('text', { x: 195, y: 23, fontSize: 9, fill: "#cbd5e1" }, "2min")
+                    )
                 )
             );
         };
