@@ -39,7 +39,8 @@
             CheckSquare, Square, Film, Loader2, Clapperboard, MonitorPlay,
             Settings, UserPlus, Users, Shirt, Shield, Swords, FileJson, SaveAll, 
             Database, MapPin, BarChart2, Filter, PieChart, LayoutGrid, RefreshCw, 
-            FileVideo, Terminal, Copy, PlaySquare, HelpCircle, TrendingUp, Target, Activity
+            FileVideo, Terminal, Copy, PlaySquare, HelpCircle, TrendingUp, Target, Activity,
+            AlertTriangle, Hand
         } from 'https://esm.sh/lucide-react@0.263.1';
 
         // --- Utilitários ---
@@ -237,28 +238,48 @@
                 const xGA = shotsA.reduce((sum, c) => sum + calculateClipXG(c.tags), 0);
                 const xGB = shotsB.reduce((sum, c) => sum + calculateClipXG(c.tags), 0);
 
-                // Top Jogadores (Golos/Remates)
-                const playerStats = {};
-                clips.forEach(c => {
-                    const isGoal = c.tags.includes("Golo");
-                    const isShot = c.tags.some(t => ["Golo", "Defesa", "Fora", "7 Metros"].includes(t));
-                    
-                    c.players.forEach(p => {
-                        const key = `${p.number} - ${p.name}`;
-                        if (!playerStats[key]) playerStats[key] = { name: key, actions: 0, goals: 0, shots: 0, xG: 0 };
-                        playerStats[key].actions += 1;
-                        if (isShot) {
-                            playerStats[key].shots += 1;
-                            playerStats[key].xG += calculateClipXG(c.tags);
-                        }
-                        if (isGoal) playerStats[key].goals += 1;
-                    });
-                });
-                const topPlayers = Object.values(playerStats)
-                    .sort((a, b) => b.actions - a.actions)
-                    .slice(0, 5);
+                // Nova Lógica de Estatísticas de Jogadores por Equipa
+                const getPlayerStats = (team) => {
+                    const statsObj = {};
+                    clips.filter(c => c.team === team).forEach(c => {
+                        const isGoal = c.tags.includes("Golo");
+                        const isShot = c.tags.some(t => ["Golo", "Defesa", "Fora", "7 Metros"].includes(t));
+                        const isTurnover = c.tags.includes("Falha Técnica");
+                        const isInterception = c.tags.includes("Intercepção");
+                        const xGVal = calculateClipXG(c.tags);
 
-                return { total, byTeam, shotsA, goalsA, shotsB, goalsB, xGA, xGB, topPlayers };
+                        c.players.forEach(p => {
+                            const key = p.id; 
+                            if (!statsObj[key]) {
+                                statsObj[key] = { 
+                                    id: p.id,
+                                    name: `${p.number} - ${p.name.split(' ')[0]}`, 
+                                    number: p.number,
+                                    shots: 0, 
+                                    goals: 0, 
+                                    xG: 0,
+                                    turnovers: 0,
+                                    interceptions: 0
+                                };
+                            }
+                            
+                            if (isShot) {
+                                statsObj[key].shots += 1;
+                                statsObj[key].xG += xGVal;
+                            }
+                            if (isGoal) statsObj[key].goals += 1;
+                            if (isTurnover) statsObj[key].turnovers += 1;
+                            if (isInterception) statsObj[key].interceptions += 1;
+                        });
+                    });
+                    // Ordenar por envolvimento (Remates + Falhas + Intercepções)
+                    return Object.values(statsObj).sort((a, b) => (b.shots + b.interceptions) - (a.shots + a.interceptions));
+                };
+
+                const playersStatsA = getPlayerStats('A');
+                const playersStatsB = getPlayerStats('B');
+
+                return { total, byTeam, shotsA, goalsA, shotsB, goalsB, xGA, xGB, playersStatsA, playersStatsB };
             }, [clips, matchInfo.teamA, matchInfo.teamB]);
 
             const filteredClips = useMemo(() => {
@@ -505,9 +526,9 @@
                     )
                 ),
 
-                // --- MODAL DE ESTATÍSTICAS (ATUALIZADO) ---
+                // --- MODAL DE ESTATÍSTICAS (ATUALIZADO - Tabelas Divididas e Novas Colunas) ---
                 showStatsModal && React.createElement('div', { className: "fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" },
-                    React.createElement('div', { className: "bg-slate-900 w-full max-w-6xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[90vh]" },
+                    React.createElement('div', { className: "bg-slate-900 w-full max-w-7xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[95vh]" },
                         React.createElement('div', { className: "p-6 border-b border-slate-800 flex justify-between items-center" },
                             React.createElement('h3', { className: "text-xl font-bold text-white flex items-center gap-2" }, React.createElement(Activity, { className: "text-blue-500" }), "Advanced Stats & xG Model"),
                             React.createElement('button', { onClick: () => setShowStatsModal(false), className: "p-2 hover:bg-slate-700 rounded-full" }, React.createElement(X))
@@ -538,10 +559,9 @@
 
                             // 2. Análise Avançada (xG vs Real)
                             React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8 mb-8" },
-                                // Equipa A
+                                // Equipa A (Análise)
                                 React.createElement('div', { className: "bg-slate-800/50 rounded-xl border border-blue-900/30 p-6" },
                                     React.createElement('h4', { className: "text-blue-400 font-bold mb-4 flex items-center gap-2" }, React.createElement(TrendingUp, { size: 18 }), `Performance Ofensiva: ${matchInfo.teamA}`),
-                                    
                                     React.createElement('div', { className: "flex justify-between items-end mb-2" },
                                         React.createElement('div', null,
                                             React.createElement('span', { className: "text-3xl font-bold text-white" }, stats.goalsA),
@@ -552,48 +572,26 @@
                                             React.createElement('span', { className: "text-xs text-slate-500 ml-2" }, "xG (Esperado)")
                                         )
                                     ),
-                                    // Barra de Progresso Comparativa
                                     React.createElement('div', { className: "w-full bg-slate-900 h-4 rounded-full overflow-hidden relative mb-2" },
-                                        // Marca do xG
                                         React.createElement('div', { 
                                             className: "absolute top-0 bottom-0 bg-slate-700 opacity-50 border-r-2 border-white", 
                                             style: { width: `${Math.min((stats.xGA / (stats.goalsA + 2)) * 100, 100)}%` } 
                                         }),
-                                        // Marca dos Golos
                                         React.createElement('div', { 
                                             className: `h-full ${stats.goalsA > stats.xGA ? 'bg-green-500' : 'bg-red-500'}`, 
                                             style: { width: `${Math.min((stats.goalsA / (stats.goalsA + 2)) * 100, 100)}%` } 
                                         })
                                     ),
-                                    React.createElement('p', { className: "text-xs text-slate-400 mb-4" }, 
+                                    React.createElement('p', { className: "text-xs text-slate-400" }, 
                                         stats.goalsA > stats.xGA 
-                                        ? `🔥 Performance acima do esperado (+${(stats.goalsA - stats.xGA).toFixed(2)}). Grande eficácia de finalização.` 
-                                        : `❄️ Performance abaixo do esperado (${(stats.goalsA - stats.xGA).toFixed(2)}). Desperdício de oportunidades claras.`
-                                    ),
-                                    
-                                    React.createElement('div', { className: "border-t border-slate-700 pt-4 mt-4" },
-                                        React.createElement('h5', { className: "text-xs font-bold text-slate-500 uppercase mb-2" }, "Performance do Guarda-Redes (Defesa)"),
-                                        React.createElement('div', { className: "flex justify-between text-sm" },
-                                            React.createElement('span', null, "xG Enfrentado (Remates Adv.):"),
-                                            React.createElement('span', { className: "font-mono" }, stats.xGB.toFixed(2))
-                                        ),
-                                        React.createElement('div', { className: "flex justify-between text-sm" },
-                                            React.createElement('span', null, "Golos Sofridos:"),
-                                            React.createElement('span', { className: "font-mono text-red-400" }, stats.goalsB)
-                                        ),
-                                        React.createElement('div', { className: "flex justify-between text-sm mt-1 pt-1 border-t border-slate-700/50" },
-                                            React.createElement('span', { className: "font-bold" }, "Golos Evitados (xG Saved):"),
-                                            React.createElement('span', { className: `font-bold ${stats.xGB - stats.goalsB > 0 ? 'text-green-400' : 'text-red-400'}` }, 
-                                                (stats.xGB - stats.goalsB).toFixed(2)
-                                            )
-                                        )
+                                        ? `🔥 Performance acima do esperado (+${(stats.goalsA - stats.xGA).toFixed(2)}).` 
+                                        : `❄️ Performance abaixo do esperado (${(stats.goalsA - stats.xGA).toFixed(2)}).`
                                     )
                                 ),
 
-                                // Equipa B
+                                // Equipa B (Análise)
                                 React.createElement('div', { className: "bg-slate-800/50 rounded-xl border border-red-900/30 p-6" },
                                     React.createElement('h4', { className: "text-red-400 font-bold mb-4 flex items-center gap-2" }, React.createElement(TrendingUp, { size: 18 }), `Performance Ofensiva: ${matchInfo.teamB}`),
-                                    
                                     React.createElement('div', { className: "flex justify-between items-end mb-2" },
                                         React.createElement('div', null,
                                             React.createElement('span', { className: "text-3xl font-bold text-white" }, stats.goalsB),
@@ -604,7 +602,6 @@
                                             React.createElement('span', { className: "text-xs text-slate-500 ml-2" }, "xG (Esperado)")
                                         )
                                     ),
-                                    // Barra de Progresso
                                     React.createElement('div', { className: "w-full bg-slate-900 h-4 rounded-full overflow-hidden relative mb-2" },
                                         React.createElement('div', { 
                                             className: "absolute top-0 bottom-0 bg-slate-700 opacity-50 border-r-2 border-white", 
@@ -615,59 +612,87 @@
                                             style: { width: `${Math.min((stats.goalsB / (stats.goalsB + 2)) * 100, 100)}%` } 
                                         })
                                     ),
-                                    React.createElement('p', { className: "text-xs text-slate-400 mb-4" }, 
+                                    React.createElement('p', { className: "text-xs text-slate-400" }, 
                                         stats.goalsB > stats.xGB 
                                         ? `🔥 Performance acima do esperado (+${(stats.goalsB - stats.xGB).toFixed(2)}).` 
                                         : `❄️ Performance abaixo do esperado (${(stats.goalsB - stats.xGB).toFixed(2)}).`
-                                    ),
-
-                                    React.createElement('div', { className: "border-t border-slate-700 pt-4 mt-4" },
-                                        React.createElement('h5', { className: "text-xs font-bold text-slate-500 uppercase mb-2" }, "Performance do Guarda-Redes (Defesa)"),
-                                        React.createElement('div', { className: "flex justify-between text-sm" },
-                                            React.createElement('span', null, "xG Enfrentado (Remates Adv.):"),
-                                            React.createElement('span', { className: "font-mono" }, stats.xGA.toFixed(2))
-                                        ),
-                                        React.createElement('div', { className: "flex justify-between text-sm" },
-                                            React.createElement('span', null, "Golos Sofridos:"),
-                                            React.createElement('span', { className: "font-mono text-red-400" }, stats.goalsA)
-                                        ),
-                                        React.createElement('div', { className: "flex justify-between text-sm mt-1 pt-1 border-t border-slate-700/50" },
-                                            React.createElement('span', { className: "font-bold" }, "Golos Evitados (xG Saved):"),
-                                            React.createElement('span', { className: `font-bold ${stats.xGA - stats.goalsA > 0 ? 'text-green-400' : 'text-red-400'}` }, 
-                                                (stats.xGA - stats.goalsA).toFixed(2)
-                                            )
-                                        )
                                     )
                                 )
                             ),
 
-                            // 3. Top Players Table (Atualizada com xG)
-                            React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden" },
-                                React.createElement('div', { className: "p-4 bg-slate-800/50 border-b border-slate-700" },
-                                    React.createElement('h4', { className: "font-bold text-white flex items-center gap-2" }, React.createElement(Target, { size: 18 }), "Top Players & Eficácia")
-                                ),
-                                React.createElement('table', { className: "w-full text-sm text-left" },
-                                    React.createElement('thead', { className: "text-xs text-slate-400 uppercase bg-slate-900/50" },
-                                        React.createElement('tr', null,
-                                            React.createElement('th', { className: "px-4 py-3" }, "Jogador"),
-                                            React.createElement('th', { className: "px-4 py-3 text-center" }, "Remates"),
-                                            React.createElement('th', { className: "px-4 py-3 text-center" }, "Golos"),
-                                            React.createElement('th', { className: "px-4 py-3 text-center" }, "Eficácia"),
-                                            React.createElement('th', { className: "px-4 py-3 text-center text-blue-400" }, "xG Total")
-                                        )
+                            // 3. Tabelas de Jogadores (DIVIDIDAS)
+                            React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8" },
+                                // Tabela Equipa A
+                                React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col" },
+                                    React.createElement('div', { className: "p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center" },
+                                        React.createElement('h4', { className: "font-bold text-blue-400 flex items-center gap-2" }, React.createElement(Target, { size: 18 }), matchInfo.teamA)
                                     ),
-                                    React.createElement('tbody', null,
-                                        stats.topPlayers.length > 0 ? stats.topPlayers.map((p, i) => 
-                                            React.createElement('tr', { key: i, className: "border-b border-slate-700 hover:bg-slate-700/50" },
-                                                React.createElement('td', { className: "px-4 py-3 font-medium text-white" }, p.name),
-                                                React.createElement('td', { className: "px-4 py-3 text-center text-slate-300" }, p.shots),
-                                                React.createElement('td', { className: "px-4 py-3 text-center text-white font-bold" }, p.goals),
-                                                React.createElement('td', { className: "px-4 py-3 text-center" }, 
-                                                    p.shots > 0 ? React.createElement('span', { className: `px-2 py-1 rounded text-xs ${p.goals/p.shots >= 0.7 ? 'bg-green-500/20 text-green-400' : p.goals/p.shots < 0.4 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}` }, `${Math.round((p.goals/p.shots)*100)}%`) : "-"
-                                                ),
-                                                React.createElement('td', { className: "px-4 py-3 text-center font-mono text-blue-300" }, p.xG.toFixed(2))
+                                    React.createElement('div', { className: "overflow-x-auto" },
+                                        React.createElement('table', { className: "w-full text-xs text-left" },
+                                            React.createElement('thead', { className: "text-[10px] text-slate-400 uppercase bg-slate-900/50" },
+                                                React.createElement('tr', null,
+                                                    React.createElement('th', { className: "px-3 py-2" }, "Jogador"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Rem."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Gol"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "%"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-blue-400" }, "xG"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-orange-400", title: "Falhas Técnicas" }, "FT"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-green-400", title: "Intercepções" }, "Int")
+                                                )
+                                            ),
+                                            React.createElement('tbody', null,
+                                                stats.playersStatsA.length > 0 ? stats.playersStatsA.map((p, i) => 
+                                                    React.createElement('tr', { key: i, className: "border-b border-slate-700 hover:bg-slate-700/50" },
+                                                        React.createElement('td', { className: "px-3 py-2 font-medium text-white" }, p.name),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-slate-300" }, p.shots),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-white font-bold" }, p.goals),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center" }, 
+                                                            p.shots > 0 ? React.createElement('span', { className: `px-1.5 py-0.5 rounded ${p.goals/p.shots >= 0.7 ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}` }, `${Math.round((p.goals/p.shots)*100)}%`) : "-"
+                                                        ),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center font-mono text-blue-300" }, p.xG.toFixed(1)),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-orange-300 font-bold" }, p.turnovers || "-"),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-green-300 font-bold" }, p.interceptions || "-")
+                                                    )
+                                                ) : React.createElement('tr', null, React.createElement('td', { colSpan: 7, className: "p-4 text-center text-slate-500" }, "Sem dados."))
                                             )
-                                        ) : React.createElement('tr', null, React.createElement('td', { colSpan: 5, className: "p-4 text-center text-slate-500" }, "Sem dados de jogadores."))
+                                        )
+                                    )
+                                ),
+
+                                // Tabela Equipa B
+                                React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col" },
+                                    React.createElement('div', { className: "p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center" },
+                                        React.createElement('h4', { className: "font-bold text-red-400 flex items-center gap-2" }, React.createElement(Target, { size: 18 }), matchInfo.teamB)
+                                    ),
+                                    React.createElement('div', { className: "overflow-x-auto" },
+                                        React.createElement('table', { className: "w-full text-xs text-left" },
+                                            React.createElement('thead', { className: "text-[10px] text-slate-400 uppercase bg-slate-900/50" },
+                                                React.createElement('tr', null,
+                                                    React.createElement('th', { className: "px-3 py-2" }, "Jogador"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Rem."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Gol"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "%"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-blue-400" }, "xG"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-orange-400", title: "Falhas Técnicas" }, "FT"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-green-400", title: "Intercepções" }, "Int")
+                                                )
+                                            ),
+                                            React.createElement('tbody', null,
+                                                stats.playersStatsB.length > 0 ? stats.playersStatsB.map((p, i) => 
+                                                    React.createElement('tr', { key: i, className: "border-b border-slate-700 hover:bg-slate-700/50" },
+                                                        React.createElement('td', { className: "px-3 py-2 font-medium text-white" }, p.name),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-slate-300" }, p.shots),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-white font-bold" }, p.goals),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center" }, 
+                                                            p.shots > 0 ? React.createElement('span', { className: `px-1.5 py-0.5 rounded ${p.goals/p.shots >= 0.7 ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}` }, `${Math.round((p.goals/p.shots)*100)}%`) : "-"
+                                                        ),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center font-mono text-blue-300" }, p.xG.toFixed(1)),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-orange-300 font-bold" }, p.turnovers || "-"),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-green-300 font-bold" }, p.interceptions || "-")
+                                                    )
+                                                ) : React.createElement('tr', null, React.createElement('td', { colSpan: 7, className: "p-4 text-center text-slate-500" }, "Sem dados."))
+                                            )
+                                        )
                                     )
                                 )
                             )
