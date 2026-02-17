@@ -206,6 +206,7 @@
             // Dados de Tagging
             const [currentTags, setCurrentTags] = useState([]);
             const [selectedPlayers, setSelectedPlayers] = useState([]); 
+            const [selectedGoalkeeper, setSelectedGoalkeeper] = useState(null); // NOVO ESTADO GR
             const [comment, setComment] = useState("");
             const [combinations, setCombinations] = useState([]);
             const [newComboInput, setNewComboInput] = useState("");
@@ -276,11 +277,53 @@
                     return Object.values(statsObj).sort((a, b) => (b.shots + b.interceptions) - (a.shots + a.interceptions));
                 };
 
+                // Lógica Específica para Guarda-Redes (xDefesas)
+                // teamGk = Equipa do GR. Se teamGk = 'A', olhamos para ataques da equipa 'B'
+                const getGKStats = (teamGk) => {
+                    const statsObj = {};
+                    const attackingTeam = teamGk === 'A' ? 'B' : 'A';
+                    
+                    clips.filter(c => c.team === attackingTeam && c.goalkeeperId).forEach(c => {
+                        const isGoal = c.tags.includes("Golo");
+                        const isSave = c.tags.includes("Defesa");
+                        // Consideramos qualquer remate como "Faced"
+                        const isShotFaced = c.tags.some(t => ["Golo", "Defesa", "Fora", "7 Metros"].includes(t));
+                        const xGVal = calculateClipXG(c.tags);
+
+                        const key = c.goalkeeperId;
+                        
+                        // Encontrar info do jogador se não existir
+                        if (!statsObj[key]) {
+                            // Tentar encontrar na lista de jogadores da equipa
+                            const playerList = teamGk === 'A' ? matchInfo.playersA : matchInfo.playersB;
+                            const player = playerList.find(p => p.id === key);
+                            statsObj[key] = {
+                                id: key,
+                                name: player ? `${player.number} - ${player.name.split(' ')[0]}` : "Desconhecido",
+                                shotsFaced: 0,
+                                goalsConceded: 0,
+                                saves: 0,
+                                xGFaced: 0,
+                            };
+                        }
+
+                        if (isShotFaced) {
+                            statsObj[key].shotsFaced += 1;
+                            statsObj[key].xGFaced += xGVal;
+                        }
+                        if (isGoal) statsObj[key].goalsConceded += 1;
+                        if (isSave) statsObj[key].saves += 1;
+                    });
+                    return Object.values(statsObj);
+                };
+
                 const playersStatsA = getPlayerStats('A');
                 const playersStatsB = getPlayerStats('B');
+                const gkStatsA = getGKStats('A');
+                const gkStatsB = getGKStats('B');
 
-                return { total, byTeam, shotsA, goalsA, shotsB, goalsB, xGA, xGB, playersStatsA, playersStatsB };
-            }, [clips, matchInfo.teamA, matchInfo.teamB]);
+                return { total, byTeam, shotsA, goalsA, shotsB, goalsB, xGA, xGB, playersStatsA, playersStatsB, gkStatsA, gkStatsB };
+            }, [clips, matchInfo.teamA, matchInfo.teamB, matchInfo.playersA, matchInfo.playersB]);
 
             const filteredClips = useMemo(() => {
                 return clips.filter(clip => {
@@ -336,10 +379,20 @@
             }, []);
 
             const saveClip = () => {
-                setClips([...clips, { id: Date.now(), start: inPoint, end: outPoint, duration: outPoint - inPoint, tags: currentTags, players: selectedPlayers, team: activeTeam, comment: comment }]);
+                setClips([...clips, { 
+                    id: Date.now(), 
+                    start: inPoint, 
+                    end: outPoint, 
+                    duration: outPoint - inPoint, 
+                    tags: currentTags, 
+                    players: selectedPlayers, 
+                    goalkeeperId: selectedGoalkeeper, // GUARDAR GR
+                    team: activeTeam, 
+                    comment: comment 
+                }]);
                 closeModal();
             };
-            const closeModal = () => { setIsModalOpen(false); setInPoint(null); setOutPoint(null); setCurrentTags([]); setSelectedPlayers([]); setComment(""); };
+            const closeModal = () => { setIsModalOpen(false); setInPoint(null); setOutPoint(null); setCurrentTags([]); setSelectedPlayers([]); setSelectedGoalkeeper(null); setComment(""); };
             const deleteClip = (id) => { setClips(clips.filter(c => c.id !== id)); setSelectedClips(selectedClips.filter(sid => sid !== id)); };
             const jumpToClip = (start) => { if (videoRef.current) { videoRef.current.currentTime = start; videoRef.current.play(); setIsPlaying(true); } };
             const handleFileUpload = (e) => { const f = e.target.files[0]; if(f) { setVideoSrc(URL.createObjectURL(f)); setVideoFileName(f.name); }};
@@ -621,7 +674,7 @@
                             ),
 
                             // 3. Tabelas de Jogadores (DIVIDIDAS)
-                            React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8" },
+                            React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8 mb-8" },
                                 // Tabela Equipa A
                                 React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col" },
                                     React.createElement('div', { className: "p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center" },
@@ -691,6 +744,83 @@
                                                         React.createElement('td', { className: "px-2 py-2 text-center text-green-300 font-bold" }, p.interceptions || "-")
                                                     )
                                                 ) : React.createElement('tr', null, React.createElement('td', { colSpan: 7, className: "p-4 text-center text-slate-500" }, "Sem dados."))
+                                            )
+                                        )
+                                    )
+                                )
+                            ),
+
+                            // 4. Tabelas de GUARDA-REDES (NOVO)
+                            React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-8" },
+                                // Tabela GR Equipa A
+                                React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col" },
+                                    React.createElement('div', { className: "p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center" },
+                                        React.createElement('h4', { className: "font-bold text-blue-400 flex items-center gap-2" }, React.createElement(Shield, { size: 18 }), "Guarda-Redes: " + matchInfo.teamA)
+                                    ),
+                                    React.createElement('div', { className: "overflow-x-auto" },
+                                        React.createElement('table', { className: "w-full text-xs text-left" },
+                                            React.createElement('thead', { className: "text-[10px] text-slate-400 uppercase bg-slate-900/50" },
+                                                React.createElement('tr', null,
+                                                    React.createElement('th', { className: "px-3 py-2" }, "Guarda-Redes"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Rem."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Sof."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-green-400" }, "Def."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "%"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-blue-400" }, "xG Enf"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-purple-400", title: "Golos Evitados (xG - Sofridos)" }, "xDef")
+                                                )
+                                            ),
+                                            React.createElement('tbody', null,
+                                                stats.gkStatsA.length > 0 ? stats.gkStatsA.map((gk, i) => 
+                                                    React.createElement('tr', { key: i, className: "border-b border-slate-700 hover:bg-slate-700/50" },
+                                                        React.createElement('td', { className: "px-3 py-2 font-medium text-white" }, gk.name),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-slate-300" }, gk.shotsFaced),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-red-400 font-bold" }, gk.goalsConceded),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-green-400 font-bold" }, gk.saves),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center" }, 
+                                                            gk.shotsFaced > 0 ? React.createElement('span', { className: `px-1.5 py-0.5 rounded ${gk.saves/gk.shotsFaced >= 0.35 ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}` }, `${Math.round((gk.saves/gk.shotsFaced)*100)}%`) : "-"
+                                                        ),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center font-mono text-blue-300" }, gk.xGFaced.toFixed(1)),
+                                                        React.createElement('td', { className: `px-2 py-2 text-center font-bold ${gk.xGFaced - gk.goalsConceded > 0 ? 'text-green-400' : 'text-red-400'}` }, (gk.xGFaced - gk.goalsConceded).toFixed(1))
+                                                    )
+                                                ) : React.createElement('tr', null, React.createElement('td', { colSpan: 7, className: "p-4 text-center text-slate-500" }, "Sem dados de GR."))
+                                            )
+                                        )
+                                    )
+                                ),
+
+                                // Tabela GR Equipa B
+                                React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col" },
+                                    React.createElement('div', { className: "p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center" },
+                                        React.createElement('h4', { className: "font-bold text-red-400 flex items-center gap-2" }, React.createElement(Shield, { size: 18 }), "Guarda-Redes: " + matchInfo.teamB)
+                                    ),
+                                    React.createElement('div', { className: "overflow-x-auto" },
+                                        React.createElement('table', { className: "w-full text-xs text-left" },
+                                            React.createElement('thead', { className: "text-[10px] text-slate-400 uppercase bg-slate-900/50" },
+                                                React.createElement('tr', null,
+                                                    React.createElement('th', { className: "px-3 py-2" }, "Guarda-Redes"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Rem."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "Sof."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-green-400" }, "Def."),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center" }, "%"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-blue-400" }, "xG Enf"),
+                                                    React.createElement('th', { className: "px-2 py-2 text-center text-purple-400", title: "Golos Evitados (xG - Sofridos)" }, "xDef")
+                                                )
+                                            ),
+                                            React.createElement('tbody', null,
+                                                stats.gkStatsB.length > 0 ? stats.gkStatsB.map((gk, i) => 
+                                                    React.createElement('tr', { key: i, className: "border-b border-slate-700 hover:bg-slate-700/50" },
+                                                        React.createElement('td', { className: "px-3 py-2 font-medium text-white" }, gk.name),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-slate-300" }, gk.shotsFaced),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-red-400 font-bold" }, gk.goalsConceded),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center text-green-400 font-bold" }, gk.saves),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center" }, 
+                                                            gk.shotsFaced > 0 ? React.createElement('span', { className: `px-1.5 py-0.5 rounded ${gk.saves/gk.shotsFaced >= 0.35 ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}` }, `${Math.round((gk.saves/gk.shotsFaced)*100)}%`) : "-"
+                                                        ),
+                                                        React.createElement('td', { className: "px-2 py-2 text-center font-mono text-blue-300" }, gk.xGFaced.toFixed(1)),
+                                                        React.createElement('td', { className: `px-2 py-2 text-center font-bold ${gk.xGFaced - gk.goalsConceded > 0 ? 'text-green-400' : 'text-red-400'}` }, (gk.xGFaced - gk.goalsConceded).toFixed(1))
+                                                    )
+                                                ) : React.createElement('tr', null, React.createElement('td', { colSpan: 7, className: "p-4 text-center text-slate-500" }, "Sem dados de GR."))
                                             )
                                         )
                                     )
@@ -800,7 +930,7 @@
                                 React.createElement('h3', { className: "text-lg font-bold text-white flex items-center gap-2" }, "Classificar Lance", 
                                     // BOTAO DE TROCA DE EQUIPA NO HEADER
                                     React.createElement('button', { 
-                                        onClick: () => { setActiveTeam(prev => prev === 'A' ? 'B' : 'A'); setSelectedPlayers([]); },
+                                        onClick: () => { setActiveTeam(prev => prev === 'A' ? 'B' : 'A'); setSelectedPlayers([]); setSelectedGoalkeeper(null); },
                                         className: `text-xs px-2 py-1 rounded border font-bold flex items-center gap-2 hover:opacity-80 transition-all ${activeTeam==='A'?'border-blue-500 text-blue-400 bg-blue-500/10':'border-red-500 text-red-400 bg-red-500/10'}` 
                                     }, 
                                         activeTeam==='A' ? matchInfo.teamA : matchInfo.teamB,
@@ -835,6 +965,27 @@
                                     React.createElement('div', null,
                                         React.createElement('h4', { className: "text-[10px] font-bold text-green-500 uppercase mb-2" }, "Resultado"),
                                         React.createElement('div', { className: "flex flex-wrap gap-2" }, staticCategories["Resultado"].map(t => React.createElement(TagButton, { key: t, label: t, color: "green", selected: currentTags.includes(t), onClick: () => toggleTag(t), small: true })))
+                                    ),
+
+                                    // --- SELEÇÃO DE GUARDA-REDES ADVERSÁRIO (NOVO) ---
+                                    React.createElement('div', { className: "bg-purple-900/10 p-2 rounded border border-purple-500/20" },
+                                        React.createElement('h4', { className: "text-[10px] font-bold text-purple-400 uppercase mb-2 flex items-center gap-1" }, React.createElement(Shield, { size: 10 }), "Guarda-Redes Adversário"),
+                                        React.createElement('div', { className: "flex flex-wrap gap-2" }, 
+                                            (activeTeam === 'A' ? matchInfo.playersB : matchInfo.playersA)
+                                            .filter(p => p.position === "Guarda-Redes" || p.position === "GR")
+                                            .length > 0 ? 
+                                                (activeTeam === 'A' ? matchInfo.playersB : matchInfo.playersA)
+                                                .filter(p => p.position === "Guarda-Redes" || p.position === "GR")
+                                                .map(p => React.createElement(TagButton, { 
+                                                    key: p.id, 
+                                                    label: `${p.number} ${p.name.split(' ')[0]}`, 
+                                                    color: "purple", 
+                                                    selected: selectedGoalkeeper === p.id, 
+                                                    onClick: () => setSelectedGoalkeeper(selectedGoalkeeper === p.id ? null : p.id), 
+                                                    small: true 
+                                                }))
+                                            : React.createElement('span', { className: "text-[10px] text-slate-500 italic" }, "Defina 'Guarda-Redes' nas Equipas")
+                                        )
                                     ),
 
                                     React.createElement('div', null,
