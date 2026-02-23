@@ -73,10 +73,21 @@
 
         const getHeatmapColor = (efficiency) => {
             if (efficiency === null || efficiency === undefined) return "#1e293b"; 
-            let r, g, b = 0;
-            if (efficiency < 0.5) { r = 255; g = Math.round(255 * (efficiency * 2)); } 
-            else { r = Math.round(255 * (2 - efficiency * 2)); g = 255; }
-            return `rgba(${r}, ${g}, ${b}, 0.6)`;
+            let r, g, b;
+            if (efficiency < 0.5) {
+                // Vermelho (0%) para Amarelo (50%)
+                const f = efficiency * 2; 
+                r = Math.round(239 + (234 - 239) * f);
+                g = Math.round(68 + (179 - 68) * f);
+                b = Math.round(68 + (8 - 68) * f);
+            } else {
+                // Amarelo (50%) para Verde (100%)
+                const f = (efficiency - 0.5) * 2; 
+                r = Math.round(234 + (34 - 234) * f);
+                g = Math.round(179 + (197 - 179) * f);
+                b = Math.round(8 + (94 - 8) * f);
+            }
+            return `rgba(${r}, ${g}, ${b}, 0.75)`;
         };
 
         const staticCategories = {
@@ -126,6 +137,8 @@
             const teamGames = games.filter(g => g.matchInfo.teamAId === teamId || g.matchInfo.teamBId === teamId);
             let wins = 0, draws = 0, losses = 0, goalsScored = 0, goalsConceded = 0, totalShots = 0, totalxG = 0;
             const playerStats = {}; 
+            const zoneStats = {};
+            zones.forEach(z => zoneStats[z] = { shots: 0, goals: 0, efficiency: 0 });
 
             teamGames.forEach(game => {
                 const isTeamA = game.matchInfo.teamAId === teamId;
@@ -154,7 +167,14 @@
                         const isShot = clip.tags.some(t => ["Golo", "Defesa", "Fora", "Poste", "7 Metros"].includes(t));
                         const xG = calculateClipXG(clip.tags);
 
-                        if (isShot) { totalShots++; totalxG += xG; }
+                        if (isShot) { 
+                            totalShots++; totalxG += xG; 
+                            const zone = clip.tags.find(t => zones.includes(t));
+                            if (zone && zoneStats[zone]) {
+                                zoneStats[zone].shots++;
+                                if (isGoal) zoneStats[zone].goals++;
+                            }
+                        }
 
                         clip.players.forEach(p => {
                             if (playerStats[p.id]) {
@@ -166,9 +186,16 @@
                 });
             });
 
+            Object.keys(zoneStats).forEach(z => {
+                if (zoneStats[z].shots > 0) {
+                    zoneStats[z].efficiency = zoneStats[z].goals / zoneStats[z].shots;
+                }
+            });
+
             return {
                 totalGames: teamGames.length, wins, draws, losses, goalsScored, goalsConceded, totalShots, totalxG,
                 playerStats: Object.values(playerStats).sort((a,b) => b.goals - a.goals || b.shots - a.shots),
+                zoneStats,
                 games: teamGames.sort((a,b) => new Date(b.metadata.date) - new Date(a.metadata.date))
             };
         };
@@ -411,7 +438,13 @@
                             React.createElement('div', { className: "bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 text-center" }, React.createElement('span', { className: "block text-[10px] uppercase font-bold text-slate-500" }, "Eficácia"), React.createElement('span', { className: "text-xl font-bold text-green-400" }, stats.totalShots > 0 ? Math.round((stats.goalsScored / stats.totalShots)*100) : 0, "%")),
                             React.createElement('div', { className: "bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 text-center" }, React.createElement('span', { className: "block text-[10px] uppercase font-bold text-slate-500" }, "xG Total"), React.createElement('span', { className: "text-xl font-bold text-blue-400" }, stats.totalxG.toFixed(2)))
                         ),
-                        React.createElement(SimpleStatTable, { title: "Performance Individual", data: stats.playerStats })
+                        React.createElement('div', { className: "grid grid-cols-1 lg:grid-cols-2 gap-6" },
+                            React.createElement('div', null, React.createElement(SimpleStatTable, { title: "Performance Individual", data: stats.playerStats })),
+                            React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col items-center" },
+                                React.createElement('h4', { className: "text-slate-300 font-bold mb-4 flex items-center gap-2 w-full" }, React.createElement(MapPin, { size: 18 }), "Zonas de Remate (Este Jogo)"),
+                                React.createElement('div', { className: "w-full max-w-sm my-auto" }, React.createElement(StatsCourt, { zoneStats: stats.zoneStats }))
+                            )
+                        )
                     )
                 )
             );
@@ -847,7 +880,13 @@
                                                 React.createElement('div', { className: "bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-sm" }, React.createElement('span', { className: "block text-[10px] font-bold text-slate-500 uppercase" }, "Emp / Der"), React.createElement('span', { className: "text-2xl font-black text-amber-400" }, `${teamStats.draws} / ${teamStats.losses}`)),
                                                 React.createElement('div', { className: "bg-slate-800 p-4 rounded-xl border border-slate-700 text-center shadow-sm" }, React.createElement('span', { className: "block text-[10px] font-bold text-slate-500 uppercase" }, "Golos (Marc / Sof)"), React.createElement('span', { className: "text-2xl font-black text-blue-400" }, `${teamStats.goalsScored} - ${teamStats.goalsConceded}`))
                                             ),
-                                            React.createElement(SimpleStatTable, { title: "Estatísticas Acumuladas do Plantel", data: teamStats.playerStats })
+                                            React.createElement('div', { className: "grid grid-cols-1 xl:grid-cols-2 gap-6" },
+                                                React.createElement('div', null, React.createElement(SimpleStatTable, { title: "Estatísticas Acumuladas do Plantel", data: teamStats.playerStats })),
+                                                React.createElement('div', { className: "bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col" },
+                                                    React.createElement('h4', { className: "text-slate-300 font-bold mb-4 flex items-center gap-2" }, React.createElement(MapPin, { size: 18 }), "Zonas de Remate (Global)"),
+                                                    React.createElement('div', { className: "w-full max-w-md mx-auto my-auto" }, React.createElement(StatsCourt, { zoneStats: teamStats.zoneStats }))
+                                                )
+                                            )
                                         ),
                                         teamSubTab === 'history' && teamStats && React.createElement('div', { className: "p-6 space-y-4 animate-in fade-in" },
                                             teamStats.games.length === 0 ? React.createElement('div', { className: "text-center text-slate-500 py-10" }, "Nenhum jogo registado.") :
