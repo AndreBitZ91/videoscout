@@ -37,13 +37,6 @@
             background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
         }
 
-        @keyframes recording {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        .animate-recording { animation: recording 1.5s infinite; }
-
         /* Custom range styling */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -54,6 +47,13 @@
             cursor: pointer;
             box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
             margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #1e293b;
+            border-radius: 2px;
         }
     </style>
 </head>
@@ -78,7 +78,7 @@
         // 📦 CONSTANTES E UTILITÁRIOS
         // =========================================================================
         const formatTime = (seconds) => {
-            if (!seconds && seconds !== 0) return "00:00";
+            if (seconds === undefined || seconds === null || isNaN(seconds)) return "00:00.0";
             const m = Math.floor(seconds / 60);
             const s = Math.floor(seconds % 60);
             const ms = Math.floor((seconds % 1) * 10);
@@ -87,60 +87,48 @@
 
         const getHeatmapColor = (efficiency) => {
             if (efficiency === null || efficiency === undefined) return "#1e293b"; 
-            if (efficiency < 0.3) return "rgba(239, 68, 68, 0.7)";  // Red
-            if (efficiency < 0.5) return "rgba(249, 115, 22, 0.7)"; // Orange
-            if (efficiency < 0.7) return "rgba(234, 179, 8, 0.7)";  // Yellow
-            return "rgba(34, 197, 94, 0.7)";                       // Green
+            if (efficiency < 0.3) return "rgba(239, 68, 68, 0.8)";  // Red
+            if (efficiency < 0.5) return "rgba(249, 115, 22, 0.8)"; // Orange
+            if (efficiency < 0.7) return "rgba(234, 179, 8, 0.8)";  // Yellow
+            return "rgba(34, 197, 94, 0.8)";                       // Green
         };
 
         const staticCategories = {
-            "Posição": ["Guarda-Redes", "Ponta Esquerda", "Lateral Esquerda", "Central", "Lateral Direita", "Ponta Direita", "Pivot"],
             "Resultado": ["Golo", "Defesa", "Fora", "Poste", "7 Metros"],
             "Turn Over": ["Falha Técnica", "Intercepção"],
-            "Conquistas": ["2min", "7 metros", "2min + 7 metros"],
-            "Fase": ["Ofensiva", "Defensiva", "1ª Vaga", "2ª Vaga", "3ª Vaga", "7 metros"],
-            "Situação": ["Igualdade", "Superioridade", "Inferioridade", "7x6", "Baliza Aberta"],
-            "Sanções": ["2min", "Amarelo", "Vermelho"]
+            "Fase": ["Ofensiva", "Defensiva", "Contra-Ataque", "Retorno"]
         };
         const zones = ["Zona 1", "Zona 2", "Zona 3", "Zona 4", "Zona 5", "Zona 6", "Zona 7", "Zona 8"];
-
-        // Cálculo de xG simplificado para Handebol
-        const calculateClipXG = (tags) => {
-            const isShot = tags.some(t => ["Golo", "Defesa", "Fora", "Poste", "7 Metros"].includes(t));
-            if (!isShot) return 0;
-            let xg = 0.30; // Base
-            if (tags.includes("7 Metros")) return 0.75; 
-            if (tags.includes("Baliza Aberta")) return 0.95;
-            if (tags.includes("Zona 1") || tags.includes("Zona 5")) xg = 0.45;
-            else if (tags.includes("Zona 3")) xg = 0.55;
-            else if (tags.includes("Zona 6") || tags.includes("Zona 7") || tags.includes("Zona 8")) xg = 0.20;
-            
-            if (tags.includes("1ª Vaga") || tags.includes("Contra-Ataque")) xg += 0.15;
-            if (tags.includes("Remate Curta Distância")) xg += 0.10;
-            return Math.min(Math.max(xg, 0.05), 0.99);
-        };
 
         // =========================================================================
         // 🧩 COMPONENTES UI REUTILIZÁVEIS
         // =========================================================================
-        
         const Button = ({ children, onClick, variant = "primary", size = "md", className = "", icon: Icon }) => {
             const variants = {
-                primary: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20",
+                primary: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 border border-blue-500",
                 secondary: "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700",
-                danger: "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/20",
+                danger: "bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 border border-red-500",
                 ghost: "hover:bg-slate-800 text-slate-400 hover:text-white",
-                success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20"
+                success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 border border-emerald-500"
             };
-            const sizes = {
-                sm: "px-3 py-1.5 text-xs",
-                md: "px-4 py-2 text-sm",
-                lg: "px-6 py-3 text-base"
-            };
+            const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
             return React.createElement('button', {
                 onClick,
                 className: `flex items-center justify-center gap-2 rounded-lg font-bold transition-all active:scale-95 ${variants[variant]} ${sizes[size]} ${className}`
             }, Icon && React.createElement(Icon, { size: size === 'sm' ? 14 : 18 }), children);
+        };
+
+        const TagButton = ({ label, selected, onClick, color = "blue" }) => {
+            const colors = {
+                blue: selected ? "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/50" : "bg-slate-900 text-slate-400 border-slate-700 hover:border-blue-500/50 hover:text-blue-300",
+                green: selected ? "bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/50" : "bg-slate-900 text-slate-400 border-slate-700 hover:border-emerald-500/50 hover:text-emerald-300",
+                yellow: selected ? "bg-amber-500 text-slate-900 border-amber-400 shadow-lg shadow-amber-900/50" : "bg-slate-900 text-slate-400 border-slate-700 hover:border-amber-500/50 hover:text-amber-300",
+                red: selected ? "bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/50" : "bg-slate-900 text-slate-400 border-slate-700 hover:border-red-500/50 hover:text-red-300"
+            };
+            return React.createElement('button', {
+                onClick,
+                className: `px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${colors[color]}`
+            }, label);
         };
 
         const Card = ({ children, title, icon: Icon, className = "", extra }) => (
@@ -160,7 +148,7 @@
                     React.createElement('div', { className: `bg-slate-950 w-full ${maxWidth} rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]` },
                         React.createElement('div', { className: "px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900" },
                             React.createElement('h2', { className: "text-lg font-bold text-white" }, title),
-                            React.createElement('button', { onClick: onClose, className: "p-2 hover:bg-slate-800 rounded-full transition-colors" }, React.createElement(X, { size: 20 }))
+                            React.createElement('button', { onClick: onClose, className: "p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white" }, React.createElement(X, { size: 20 }))
                         ),
                         React.createElement('div', { className: "flex-1 overflow-y-auto" }, children)
                     )
@@ -169,15 +157,15 @@
             );
         };
 
-        const StatsCourt = ({ zoneStats }) => {
+        const StatsCourt = ({ zoneStats = {} }) => {
             const renderZonePath = (zoneName, d, textX, textY) => {
                 const stats = zoneStats[zoneName] || { shots: 0, goals: 0, efficiency: 0 };
                 const hasShots = stats.shots > 0;
                 const fillColor = hasShots ? getHeatmapColor(stats.efficiency) : "rgba(30, 41, 59, 0.4)";
                 return React.createElement('g', { key: zoneName },
                     React.createElement('path', { d: d, fill: fillColor, stroke: "rgba(255,255,255,0.1)", strokeWidth: "1" }),
-                    hasShots && React.createElement('text', { x: textX, y: textY, textAnchor: "middle", className: "text-[10px] fill-white font-bold pointer-events-none" }, `${Math.round(stats.efficiency * 100)}%`),
-                    hasShots && React.createElement('text', { x: textX, y: parseFloat(textY) + 12, textAnchor: "middle", className: "text-[8px] fill-slate-300 font-mono pointer-events-none" }, `${stats.goals}/${stats.shots}`)
+                    hasShots && React.createElement('text', { x: textX, y: textY, textAnchor: "middle", className: "text-[10px] fill-white font-bold pointer-events-none drop-shadow-md" }, `${Math.round(stats.efficiency * 100)}%`),
+                    hasShots && React.createElement('text', { x: textX, y: parseFloat(textY) + 12, textAnchor: "middle", className: "text-[8px] fill-slate-300 font-mono pointer-events-none drop-shadow-md" }, `${stats.goals}/${stats.shots}`)
                 );
             };
             return React.createElement('div', { className: "relative w-full aspect-[16/9] court-gradient rounded-xl border border-slate-700 overflow-hidden shadow-inner" },
@@ -198,22 +186,40 @@
         };
 
         // =========================================================================
-        // 🎣 HOOKS DE DADOS
+        // 🎣 HOOKS DE DADOS (COM PROTEÇÃO CONTRA FALHAS)
         // =========================================================================
         const useStorage = () => {
-            const [teams, setTeams] = useState(() => JSON.parse(localStorage.getItem('ata_teams') || '[]'));
-            const [games, setGames] = useState(() => JSON.parse(localStorage.getItem('ata_games') || '[]'));
-            const [comps, setComps] = useState(() => JSON.parse(localStorage.getItem('ata_comps') || '[]'));
+            const getSafeItem = (key, defaultVal) => {
+                try {
+                    const item = localStorage.getItem(key);
+                    return item ? JSON.parse(item) : defaultVal;
+                } catch (error) {
+                    console.error(`Erro ao ler ${key} do LocalStorage. Resetando.`, error);
+                    return defaultVal;
+                }
+            };
 
-            useEffect(() => localStorage.setItem('ata_teams', JSON.stringify(teams)), [teams]);
-            useEffect(() => localStorage.setItem('ata_games', JSON.stringify(games)), [games]);
-            useEffect(() => localStorage.setItem('ata_comps', JSON.stringify(comps)), [comps]);
+            const [teams, setTeams] = useState(() => getSafeItem('ata_teams_v3', []));
+            const [games, setGames] = useState(() => getSafeItem('ata_games_v3', []));
+            const [comps, setComps] = useState(() => getSafeItem('ata_comps_v3', []));
+
+            useEffect(() => {
+                try { localStorage.setItem('ata_teams_v3', JSON.stringify(teams)); } catch (e) { console.error("Quota exceeded", e); }
+            }, [teams]);
+            
+            useEffect(() => {
+                try { localStorage.setItem('ata_games_v3', JSON.stringify(games)); } catch (e) { console.error("Quota exceeded", e); }
+            }, [games]);
+            
+            useEffect(() => {
+                try { localStorage.setItem('ata_comps_v3', JSON.stringify(comps)); } catch (e) { console.error("Quota exceeded", e); }
+            }, [comps]);
 
             return { teams, setTeams, games, setGames, comps, setComps };
         };
 
         // =========================================================================
-        // 🏠 DASHBOARD VIEW
+        // 🏠 DASHBOARD VIEW & SUB-COMPONENTS
         // =========================================================================
         const Dashboard = ({ onSelectGame, storage }) => {
             const { games, teams, comps, setGames, setTeams, setComps } = storage;
@@ -225,6 +231,8 @@
 
             const handleCreateGame = () => {
                 if (!newGame.compId || !newGame.teamAId || !newGame.teamBId) return alert("Preenche todos os campos!");
+                if (newGame.teamAId === newGame.teamBId) return alert("As equipas devem ser diferentes!");
+
                 const comp = comps.find(c => c.id === newGame.compId);
                 const tA = teams.find(t => t.id === newGame.teamAId);
                 const tB = teams.find(t => t.id === newGame.teamBId);
@@ -237,43 +245,47 @@
                     date: newGame.date,
                     teamA: { id: tA.id, name: tA.name, logo: tA.logo, players: tA.players || [] },
                     teamB: { id: tB.id, name: tB.name, logo: tB.logo, players: tB.players || [] },
-                    clips: [],
-                    markers: { start1: null, end1: null, start2: null, end2: null }
+                    clips: []
                 };
                 setGames([...games, game]);
                 setIsNewGameOpen(false);
                 onSelectGame(game.id);
             };
 
-            const exportCSV = (game) => {
-                // Mock logic for CSV - actual implementation would process clips
-                let csv = "Jogador,Equipa,Golos,Remates,Eficácia,xG\n";
-                // ... logic to aggregate stats ...
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
+            const handleDeleteGame = (e, id) => {
+                e.stopPropagation();
+                if(confirm("Apagar este jogo permanentemente?")) {
+                    setGames(games.filter(g => g.id !== id));
+                }
+            };
+
+            const exportAllData = () => {
+                const data = { version: "3.0", timestamp: new Date().toISOString(), teams, games, comps };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = `Stats_${game.teamA.name}_vs_${game.teamB.name}.csv`;
+                a.href = URL.createObjectURL(blob);
+                a.download = `ATA_Backup_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
             };
 
             return React.createElement('div', { className: "flex flex-col h-screen" },
-                // Header
-                React.createElement('header', { className: "h-20 glass flex items-center justify-between px-8 shrink-0" },
+                React.createElement('header', { className: "h-20 glass flex items-center justify-between px-8 shrink-0 z-10 shadow-lg" },
                     React.createElement('div', { className: "flex items-center gap-4" },
-                        React.createElement('div', { className: "w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/40" }, React.createElement(Activity, { className: "text-white" })),
+                        React.createElement('div', { className: "w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/40 border border-blue-400" }, React.createElement(Activity, { className: "text-white" })),
                         React.createElement('div', null, 
                             React.createElement('h1', { className: "text-xl font-extrabold tracking-tight" }, "AT ANALYZER ", React.createElement('span', { className: "text-blue-500" }, "PRO")),
-                            React.createElement('p', { className: "text-[10px] text-slate-400 font-bold uppercase tracking-widest" }, "Handball Scouting System")
+                            React.createElement('p', { className: "text-[10px] text-slate-400 font-bold uppercase tracking-widest" }, "Sistema Estável v3.0")
                         )
                     ),
                     React.createElement('div', { className: "flex items-center gap-3" },
-                        React.createElement(Button, { variant: "secondary", size: "sm", icon: FolderInput, onClick: () => alert("Importação de DB pendente") }, "Importar"),
-                        React.createElement(Button, { variant: "primary", size: "sm", icon: Plus, onClick: () => setIsNewGameOpen(true) }, "Novo Jogo")
+                        React.createElement(Button, { variant: "secondary", size: "sm", icon: Download, onClick: exportAllData }, "Backup DB"),
+                        React.createElement(Button, { variant: "primary", size: "sm", icon: Plus, onClick: () => {
+                            if (comps.length === 0 || teams.length < 2) return alert("Cria pelo menos 1 Competição e 2 Equipas primeiro.");
+                            setIsNewGameOpen(true);
+                        } }, "Novo Jogo")
                     )
                 ),
 
-                // Main Content
                 React.createElement('main', { className: "flex-1 overflow-y-auto p-8" },
                     React.createElement('div', { className: "max-w-6xl mx-auto" },
                         React.createElement('div', { className: "flex gap-8 border-b border-slate-800 mb-8" },
@@ -281,38 +293,38 @@
                                 key: tab,
                                 onClick: () => setActiveTab(tab),
                                 className: `pb-4 text-sm font-bold transition-all border-b-2 ${activeTab === tab ? 'text-blue-500 border-blue-500' : 'text-slate-500 border-transparent hover:text-slate-300'}`
-                            }, tab === 'games' ? 'Meus Jogos' : tab === 'teams' ? 'Equipas' : 'Competições'))
+                            }, tab === 'games' ? 'Meus Jogos' : tab === 'teams' ? 'Equipas & Plantéis' : 'Competições'))
                         ),
 
                         activeTab === 'games' && (
                             sortedGames.length === 0 ? React.createElement('div', { className: "flex flex-col items-center justify-center py-20 bg-slate-900/30 rounded-3xl border border-dashed border-slate-800" },
                                 React.createElement(Film, { size: 48, className: "text-slate-700 mb-4" }),
                                 React.createElement('p', { className: "text-slate-500 font-medium" }, "Nenhum jogo registado. Começa agora!")
-                            ) : React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
+                            ) : React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in" },
                                 sortedGames.map(game => React.createElement(Card, {
                                     key: game.id,
-                                    className: "group hover:border-blue-500/50 transition-all cursor-pointer",
-                                    extra: React.createElement('button', { onClick: (e) => { e.stopPropagation(); if(confirm("Apagar jogo?")) setGames(games.filter(g => g.id !== game.id)) }, className: "text-slate-600 hover:text-red-500" }, React.createElement(Trash2, { size: 14 }))
+                                    className: "group hover:border-blue-500/50 hover:shadow-blue-900/10 transition-all cursor-pointer",
+                                    extra: React.createElement('button', { onClick: (e) => handleDeleteGame(e, game.id), className: "text-slate-600 hover:text-red-500 p-1" }, React.createElement(Trash2, { size: 16 }))
                                 }, 
                                     React.createElement('div', { onClick: () => onSelectGame(game.id) },
                                         React.createElement('div', { className: "flex justify-between items-start mb-4" },
                                             React.createElement('span', { className: "text-[10px] font-bold bg-slate-800 text-slate-400 px-2 py-1 rounded" }, game.season),
-                                            React.createElement('span', { className: "text-[10px] text-slate-500 flex items-center gap-1" }, React.createElement(Calendar, { size: 10 }), game.date)
+                                            React.createElement('span', { className: "text-[10px] text-slate-500 flex items-center gap-1 font-mono" }, React.createElement(Calendar, { size: 10 }), game.date)
                                         ),
                                         React.createElement('div', { className: "flex items-center gap-4 mb-4" },
                                             React.createElement('div', { className: "flex-1 text-center" }, 
-                                                React.createElement('div', { className: "w-10 h-10 bg-slate-800 rounded-lg mx-auto mb-2 flex items-center justify-center" }, game.teamA.logo ? React.createElement('img', { src: game.teamA.logo, className: "w-full p-1" }) : React.createElement(Shield, { size: 20 })),
-                                                React.createElement('p', { className: "text-xs font-bold truncate" }, game.teamA.name)
+                                                React.createElement('div', { className: "w-12 h-12 bg-slate-800 rounded-lg mx-auto mb-2 flex items-center justify-center border border-slate-700" }, game.teamA?.logo ? React.createElement('img', { src: game.teamA.logo, className: "w-full p-1 h-full object-contain" }) : React.createElement(Shield, { size: 24, className: "text-slate-600" })),
+                                                React.createElement('p', { className: "text-xs font-bold truncate text-slate-200" }, game.teamA?.name || 'Desconhecido')
                                             ),
-                                            React.createElement('div', { className: "text-xs font-black text-slate-600" }, "VS"),
+                                            React.createElement('div', { className: "text-xs font-black text-slate-600 bg-slate-900 px-2 py-1 rounded border border-slate-800" }, "VS"),
                                             React.createElement('div', { className: "flex-1 text-center" }, 
-                                                React.createElement('div', { className: "w-10 h-10 bg-slate-800 rounded-lg mx-auto mb-2 flex items-center justify-center" }, game.teamB.logo ? React.createElement('img', { src: game.teamB.logo, className: "w-full p-1" }) : React.createElement(Shield, { size: 20 })),
-                                                React.createElement('p', { className: "text-xs font-bold truncate" }, game.teamB.name)
+                                                React.createElement('div', { className: "w-12 h-12 bg-slate-800 rounded-lg mx-auto mb-2 flex items-center justify-center border border-slate-700" }, game.teamB?.logo ? React.createElement('img', { src: game.teamB.logo, className: "w-full p-1 h-full object-contain" }) : React.createElement(Shield, { size: 24, className: "text-slate-600" })),
+                                                React.createElement('p', { className: "text-xs font-bold truncate text-slate-200" }, game.teamB?.name || 'Desconhecido')
                                             )
                                         ),
                                         React.createElement('div', { className: "pt-4 border-t border-slate-800 flex justify-between items-center" },
-                                            React.createElement('div', { className: "flex items-center gap-1 text-[10px] text-slate-500" }, React.createElement(Trophy, { size: 12 }), game.compName),
-                                            React.createElement('div', { className: "flex items-center gap-1 text-[10px] text-blue-500 font-bold" }, React.createElement(Scissors, { size: 12 }), `${game.clips?.length || 0} Cortes`)
+                                            React.createElement('div', { className: "flex items-center gap-1 text-[10px] text-slate-500 font-bold" }, React.createElement(Trophy, { size: 12 }), game.compName),
+                                            React.createElement('div', { className: "flex items-center gap-1 text-[10px] text-blue-500 font-bold bg-blue-500/10 px-2 py-1 rounded" }, React.createElement(Scissors, { size: 12 }), `${game.clips?.length || 0} Cortes`)
                                         )
                                     )
                                 ))
@@ -324,51 +336,59 @@
                     )
                 ),
 
-                // Modal Novo Jogo
                 React.createElement(Modal, {
                     isOpen: isNewGameOpen,
                     onClose: () => setIsNewGameOpen(false),
-                    title: "Novo Jogo"
+                    title: "Criar Novo Jogo"
                 }, 
-                    React.createElement('div', { className: "p-6 space-y-4" },
+                    React.createElement('div', { className: "p-6 space-y-6" },
                         React.createElement('div', null, 
-                            React.createElement('label', { className: "block text-xs font-bold text-slate-500 uppercase mb-2" }, "Competição"),
+                            React.createElement('label', { className: "block text-xs font-bold text-slate-400 uppercase mb-2" }, "Competição"),
                             React.createElement('select', { 
-                                className: "w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-blue-500",
+                                className: "w-full bg-slate-900 border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 text-slate-200",
                                 value: newGame.compId,
                                 onChange: e => setNewGame({...newGame, compId: e.target.value})
                             }, 
-                                React.createElement('option', { value: "" }, "Selecionar..."),
+                                React.createElement('option', { value: "" }, "Selecionar Competição..."),
                                 comps.map(c => React.createElement('option', { key: c.id, value: c.id }, `${c.name} (${c.season})`))
                             )
                         ),
-                        React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+                        React.createElement('div', { className: "grid grid-cols-2 gap-4 bg-slate-900 p-4 rounded-xl border border-slate-800" },
                             React.createElement('div', null, 
-                                React.createElement('label', { className: "block text-xs font-bold text-blue-500 uppercase mb-2" }, "Equipa Casa"),
+                                React.createElement('label', { className: "block text-xs font-bold text-blue-500 uppercase mb-2" }, "Equipa Casa (A)"),
                                 React.createElement('select', { 
-                                    className: "w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-blue-500",
+                                    className: "w-full bg-slate-950 border border-slate-700 rounded-lg p-3 outline-none focus:border-blue-500 text-slate-200",
                                     value: newGame.teamAId,
                                     onChange: e => setNewGame({...newGame, teamAId: e.target.value})
                                 }, 
-                                    React.createElement('option', { value: "" }, "Selecionar..."),
+                                    React.createElement('option', { value: "" }, "Selecionar Equipa..."),
                                     teams.map(t => React.createElement('option', { key: t.id, value: t.id }, t.name))
                                 )
                             ),
                             React.createElement('div', null, 
-                                React.createElement('label', { className: "block text-xs font-bold text-red-500 uppercase mb-2" }, "Equipa Fora"),
+                                React.createElement('label', { className: "block text-xs font-bold text-red-500 uppercase mb-2" }, "Equipa Fora (B)"),
                                 React.createElement('select', { 
-                                    className: "w-full bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-red-500",
+                                    className: "w-full bg-slate-950 border border-slate-700 rounded-lg p-3 outline-none focus:border-red-500 text-slate-200",
                                     value: newGame.teamBId,
                                     onChange: e => setNewGame({...newGame, teamBId: e.target.value})
                                 }, 
-                                    React.createElement('option', { value: "" }, "Selecionar..."),
+                                    React.createElement('option', { value: "" }, "Selecionar Equipa..."),
                                     teams.map(t => React.createElement('option', { key: t.id, value: t.id }, t.name))
                                 )
                             )
                         ),
-                        React.createElement('div', { className: "pt-4 flex justify-end gap-3" },
+                        React.createElement('div', null, 
+                            React.createElement('label', { className: "block text-xs font-bold text-slate-400 uppercase mb-2" }, "Data do Jogo"),
+                            React.createElement('input', { 
+                                type: "date",
+                                className: "w-full bg-slate-900 border border-slate-700 rounded-xl p-3 outline-none focus:border-blue-500 text-slate-200 font-mono",
+                                value: newGame.date,
+                                onChange: e => setNewGame({...newGame, date: e.target.value})
+                            })
+                        ),
+                        React.createElement('div', { className: "pt-4 border-t border-slate-800 flex justify-end gap-3" },
                             React.createElement(Button, { variant: "ghost", onClick: () => setIsNewGameOpen(false) }, "Cancelar"),
-                            React.createElement(Button, { variant: "primary", onClick: handleCreateGame }, "Começar Análise")
+                            React.createElement(Button, { variant: "success", icon: PlaySquare, onClick: handleCreateGame }, "Gerar e Analisar")
                         )
                     )
                 )
@@ -379,12 +399,31 @@
             const [isNewTeamOpen, setIsNewTeamOpen] = useState(false);
             const [editingTeam, setEditingTeam] = useState(null);
             const [newTeam, setNewTeam] = useState({ name: '', logo: '', players: [] });
+            
+            // Player Editor State
+            const [newPlayer, setNewPlayer] = useState({ number: '', name: '' });
 
             const handleAddTeam = () => {
                 if (!newTeam.name) return;
                 setTeams([...teams, { id: Date.now().toString(), ...newTeam }]);
                 setNewTeam({ name: '', logo: '', players: [] });
                 setIsNewTeamOpen(false);
+            };
+
+            const handleAddPlayer = () => {
+                if (!newPlayer.number || !newPlayer.name || !editingTeam) return;
+                const updatedPlayers = [...(editingTeam.players || []), { id: Date.now().toString(), ...newPlayer }];
+                const updatedTeam = { ...editingTeam, players: updatedPlayers };
+                setEditingTeam(updatedTeam);
+                setTeams(teams.map(t => t.id === updatedTeam.id ? updatedTeam : t));
+                setNewPlayer({ number: '', name: '' });
+            };
+
+            const handleDeletePlayer = (playerId) => {
+                const updatedPlayers = editingTeam.players.filter(p => p.id !== playerId);
+                const updatedTeam = { ...editingTeam, players: updatedPlayers };
+                setEditingTeam(updatedTeam);
+                setTeams(teams.map(t => t.id === updatedTeam.id ? updatedTeam : t));
             };
 
             return React.createElement('div', { className: "space-y-6 animate-in fade-in" },
@@ -395,21 +434,52 @@
                     teams.map(team => React.createElement(Card, { key: team.id, title: team.name, icon: Shield },
                         React.createElement('div', { className: "text-center py-4" },
                             React.createElement('div', { className: "w-16 h-16 bg-slate-800 rounded-2xl mx-auto mb-4 flex items-center justify-center border border-slate-700 overflow-hidden" },
-                                team.logo ? React.createElement('img', { src: team.logo, className: "w-full p-2" }) : React.createElement(Shield, { size: 32, className: "text-slate-600" })
+                                team.logo ? React.createElement('img', { src: team.logo, className: "w-full p-2 h-full object-contain" }) : React.createElement(Shield, { size: 32, className: "text-slate-600" })
                             ),
-                            React.createElement('p', { className: "text-xs text-slate-500" }, `${team.players?.length || 0} Atletas`),
-                            React.createElement('div', { className: "mt-4 flex gap-2 justify-center" },
-                                React.createElement(Button, { size: "sm", variant: "secondary", icon: Edit, onClick: () => alert("Editor de Plantel pendente") }, "Ver"),
-                                React.createElement(Button, { size: "sm", variant: "ghost", icon: Trash2, onClick: () => setTeams(teams.filter(t => t.id !== team.id)) })
+                            React.createElement('p', { className: "text-xs font-bold text-slate-400 bg-slate-800 inline-block px-3 py-1 rounded-full border border-slate-700" }, `${team.players?.length || 0} Atletas`),
+                            React.createElement('div', { className: "mt-6 flex gap-2 justify-center" },
+                                React.createElement(Button, { size: "sm", variant: "secondary", icon: Users, onClick: () => setEditingTeam(team) }, "Plantel"),
+                                React.createElement(Button, { size: "sm", variant: "ghost", icon: Trash2, onClick: () => { if(confirm(`Apagar equipa ${team.name}?`)) setTeams(teams.filter(t => t.id !== team.id)) } })
                             )
                         )
                     ))
                 ),
+
+                // Modal Criar Equipa
                 React.createElement(Modal, { isOpen: isNewTeamOpen, onClose: () => setIsNewTeamOpen(false), title: "Nova Equipa" },
                     React.createElement('div', { className: "p-6 space-y-4" },
-                        React.createElement('input', { placeholder: "Nome da Equipa", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg", value: newTeam.name, onChange: e => setNewTeam({...newTeam, name: e.target.value}) }),
-                        React.createElement('input', { placeholder: "URL do Logo", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg", value: newTeam.logo, onChange: e => setNewTeam({...newTeam, logo: e.target.value}) }),
-                        React.createElement(Button, { className: "w-full", onClick: handleAddTeam }, "Criar Equipa")
+                        React.createElement('input', { placeholder: "Nome da Equipa", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg text-slate-200 outline-none focus:border-blue-500", value: newTeam.name, onChange: e => setNewTeam({...newTeam, name: e.target.value}) }),
+                        React.createElement('input', { placeholder: "URL do Logo (Opcional)", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg text-slate-200 outline-none focus:border-blue-500", value: newTeam.logo, onChange: e => setNewTeam({...newTeam, logo: e.target.value}) }),
+                        React.createElement(Button, { className: "w-full", onClick: handleAddTeam, variant: "success" }, "Guardar Equipa")
+                    )
+                ),
+
+                // Modal Editar Plantel (Crucial para não haver "telas presas")
+                React.createElement(Modal, { isOpen: !!editingTeam, onClose: () => setEditingTeam(null), title: `Plantel: ${editingTeam?.name}` },
+                    React.createElement('div', { className: "p-6 flex flex-col h-[60vh]" },
+                        React.createElement('div', { className: "flex gap-2 mb-6 bg-slate-900 p-4 rounded-xl border border-slate-800" },
+                            React.createElement('input', { 
+                                placeholder: "Nº", type: "number",
+                                className: "w-20 bg-slate-950 border border-slate-700 p-3 rounded-lg text-slate-200 outline-none focus:border-blue-500 font-mono text-center", 
+                                value: newPlayer.number, onChange: e => setNewPlayer({...newPlayer, number: e.target.value}) 
+                            }),
+                            React.createElement('input', { 
+                                placeholder: "Nome do Atleta", 
+                                className: "flex-1 bg-slate-950 border border-slate-700 p-3 rounded-lg text-slate-200 outline-none focus:border-blue-500", 
+                                value: newPlayer.name, onChange: e => setNewPlayer({...newPlayer, name: e.target.value}) 
+                            }),
+                            React.createElement(Button, { onClick: handleAddPlayer, variant: "primary", icon: Plus }, "Adicionar")
+                        ),
+                        React.createElement('div', { className: "flex-1 overflow-y-auto space-y-2 pr-2" },
+                            (editingTeam?.players || []).length === 0 ? React.createElement('p', { className: "text-center text-slate-500 py-10" }, "Nenhum jogador registado na equipa.") :
+                            (editingTeam?.players || []).map(p => React.createElement('div', { key: p.id, className: "flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700" },
+                                React.createElement('div', { className: "flex items-center gap-4" },
+                                    React.createElement('span', { className: "w-8 h-8 flex items-center justify-center bg-slate-900 rounded-full font-mono font-bold text-blue-400 text-sm border border-slate-700" }, p.number),
+                                    React.createElement('span', { className: "font-bold text-slate-200" }, p.name)
+                                ),
+                                React.createElement('button', { onClick: () => handleDeletePlayer(p.id), className: "text-slate-500 hover:text-red-500 p-2" }, React.createElement(Trash2, { size: 16 }))
+                            ))
+                        )
                     )
                 )
             );
@@ -425,24 +495,24 @@
                 ),
                 React.createElement('div', { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" },
                     comps.map(c => React.createElement(Card, { key: c.id, title: c.name, icon: Trophy },
-                        React.createElement('p', { className: "text-sm text-slate-400 font-bold" }, c.season),
+                        React.createElement('p', { className: "text-sm text-slate-400 font-bold bg-slate-800 inline-block px-3 py-1 rounded border border-slate-700" }, c.season),
                         React.createElement('div', { className: "mt-4 flex justify-end" },
-                             React.createElement(Button, { size: "sm", variant: "ghost", icon: Trash2, onClick: () => setComps(comps.filter(co => co.id !== c.id)) })
+                             React.createElement(Button, { size: "sm", variant: "ghost", icon: Trash2, onClick: () => { if(confirm("Apagar?")) setComps(comps.filter(co => co.id !== c.id)) } })
                         )
                     ))
                 ),
                 React.createElement(Modal, { isOpen: isNewCompOpen, onClose: () => setIsNewCompOpen(false), title: "Nova Competição" },
                     React.createElement('div', { className: "p-6 space-y-4" },
-                        React.createElement('input', { placeholder: "Nome do Campeonato", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg", value: newComp.name, onChange: e => setNewComp({...newComp, name: e.target.value}) }),
-                        React.createElement('input', { placeholder: "Época", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg", value: newComp.season, onChange: e => setNewComp({...newComp, season: e.target.value}) }),
-                        React.createElement(Button, { className: "w-full", onClick: () => { if(newComp.name) setComps([...comps, {id: Date.now().toString(), ...newComp}]); setIsNewCompOpen(false); } }, "Criar")
+                        React.createElement('input', { placeholder: "Nome do Campeonato (ex: 1ª Divisão)", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg text-slate-200 outline-none", value: newComp.name, onChange: e => setNewComp({...newComp, name: e.target.value}) }),
+                        React.createElement('input', { placeholder: "Época (ex: 2023/24)", className: "w-full bg-slate-900 border border-slate-700 p-3 rounded-lg text-slate-200 outline-none", value: newComp.season, onChange: e => setNewComp({...newComp, season: e.target.value}) }),
+                        React.createElement(Button, { className: "w-full", variant: "success", onClick: () => { if(newComp.name) { setComps([...comps, {id: Date.now().toString(), ...newComp}]); setIsNewCompOpen(false); setNewComp({name:'', season:'2023/24'}); } } }, "Criar Competição")
                     )
                 )
             );
         };
 
         // =========================================================================
-        // 🎬 ANALYZER VIEW
+        // 🎬 ANALYZER VIEW (O NÚCLEO DA APLICAÇÃO)
         // =========================================================================
         const Analyzer = ({ gameId, storage, onBack }) => {
             const { games, setGames } = storage;
@@ -455,197 +525,267 @@
             
             const [inPoint, setInPoint] = useState(null);
             const [isModalOpen, setIsModalOpen] = useState(false);
+            
             const [activeTeam, setActiveTeam] = useState('A'); // 'A' or 'B'
             const [currentTags, setCurrentTags] = useState([]);
             const [selectedPlayerIds, setSelectedPlayerIds] = useState([]);
-            const [comment, setComment] = useState("");
-
+            
             const videoRef = useRef(null);
 
+            // Prevenir Memory Leaks com ficheiros de vídeo enormes
+            useEffect(() => {
+                return () => {
+                    if (videoSrc) URL.revokeObjectURL(videoSrc);
+                };
+            }, [videoSrc]);
+
             const togglePlay = () => {
-                if (videoRef.current.paused) videoRef.current.play();
-                else videoRef.current.pause();
-                setIsPlaying(!videoRef.current.paused);
+                if (!videoRef.current) return;
+                if (videoRef.current.paused) {
+                    videoRef.current.play().catch(e => console.error("Erro ao reproduzir", e));
+                    setIsPlaying(true);
+                } else {
+                    videoRef.current.pause();
+                    setIsPlaying(false);
+                }
             };
 
-            const handleSaveClip = () => {
-                const outPoint = videoRef.current.currentTime;
-                const newClip = {
-                    id: Date.now(),
-                    start: inPoint || Math.max(0, outPoint - 5),
-                    end: outPoint,
-                    team: activeTeam,
-                    tags: currentTags,
-                    playerIds: selectedPlayerIds,
-                    comment
-                };
-                const updatedGames = games.map(g => g.id === gameId ? { ...g, clips: [...g.clips, newClip] } : g);
-                setGames(updatedGames);
-                setIsModalOpen(false);
-                setInPoint(null);
-                setCurrentTags([]);
-                setSelectedPlayerIds([]);
-                setComment("");
+            const togglePlayer = (id) => {
+                setSelectedPlayerIds(prev => prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]);
             };
 
             const toggleTag = (tag) => {
                 setCurrentTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
             };
 
-            return React.createElement('div', { className: "flex flex-col h-screen overflow-hidden" },
-                // Subheader
-                React.createElement('header', { className: "h-16 glass flex items-center justify-between px-6 shrink-0 z-10" },
+            const handleSaveClip = () => {
+                if (!videoRef.current) return;
+                const outPoint = videoRef.current.currentTime;
+                
+                // Tratar caso o utilizador não tenha feito Z (Ponto IN)
+                const finalInPoint = inPoint !== null ? inPoint : Math.max(0, outPoint - 6);
+
+                const newClip = {
+                    id: Date.now().toString(),
+                    start: finalInPoint,
+                    end: outPoint,
+                    team: activeTeam,
+                    tags: currentTags,
+                    playerIds: selectedPlayerIds
+                };
+
+                const updatedGames = games.map(g => g.id === gameId ? { ...g, clips: [...(g.clips || []), newClip] } : g);
+                setGames(updatedGames);
+                
+                // Reset state
+                setIsModalOpen(false);
+                setInPoint(null);
+                setCurrentTags([]);
+                setSelectedPlayerIds([]);
+                
+                // Retoma vídeo
+                videoRef.current.play().catch(e => console.log(e));
+                setIsPlaying(true);
+            };
+
+            if (!game) return React.createElement('div', { className: "p-10 text-center text-red-500" }, "Erro Crítico: Jogo não encontrado.");
+
+            const activePlayers = activeTeam === 'A' ? (game.teamA?.players || []) : (game.teamB?.players || []);
+
+            return React.createElement('div', { className: "flex flex-col h-screen overflow-hidden animate-in fade-in" },
+                // Header Analyzer
+                React.createElement('header', { className: "h-16 glass flex items-center justify-between px-6 shrink-0 z-10 border-b border-slate-800" },
                     React.createElement('div', { className: "flex items-center gap-4" },
-                        React.createElement('button', { onClick: onBack, className: "p-2 hover:bg-slate-800 rounded-lg text-slate-400" }, React.createElement(ArrowLeft, { size: 20 })),
+                        React.createElement('button', { onClick: onBack, className: "p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors bg-slate-900 border border-slate-700" }, React.createElement(ChevronLeft, { size: 20 })),
+                        React.createElement('div', { className: "w-px h-6 bg-slate-700" }),
                         React.createElement('div', null,
-                            React.createElement('h2', { className: "text-sm font-bold leading-none" }, `${game.teamA.name} vs ${game.teamB.name}`),
-                            React.createElement('p', { className: "text-[10px] text-slate-500 mt-1 uppercase font-bold" }, game.compName)
+                            React.createElement('h2', { className: "text-sm font-bold text-slate-200" }, `${game.teamA?.name} vs ${game.teamB?.name}`),
+                            React.createElement('p', { className: "text-[10px] text-blue-400 uppercase font-bold" }, game.compName)
                         )
                     ),
                     React.createElement('div', { className: "flex items-center gap-2" },
-                        React.createElement(Button, { variant: "secondary", size: "sm", icon: BarChart2 }, "Estatísticas"),
-                        React.createElement(Button, { variant: "secondary", size: "sm", icon: Download }, "Exportar Playlist"),
                         React.createElement('input', { 
                             type: "file", id: "v-upload", className: "hidden", 
-                            accept: "video/*", onChange: (e) => setVideoSrc(URL.createObjectURL(e.target.files[0]))
+                            accept: "video/mp4,video/mkv,video/avi", 
+                            onChange: (e) => {
+                                const file = e.target.files[0];
+                                if(file) {
+                                    if(videoSrc) URL.revokeObjectURL(videoSrc);
+                                    setVideoSrc(URL.createObjectURL(file));
+                                    setIsPlaying(false);
+                                }
+                            }
                         }),
-                        React.createElement(Button, { variant: "primary", size: "sm", icon: FileVideo, onClick: () => document.getElementById('v-upload').click() }, videoSrc ? "Trocar Vídeo" : "Carregar Vídeo")
+                        React.createElement(Button, { variant: "primary", size: "sm", icon: FileVideo, onClick: () => document.getElementById('v-upload').click() }, videoSrc ? "Trocar Vídeo" : "Carregar Vídeo mp4")
                     )
                 ),
 
-                // Workspace
-                React.createElement('div', { className: "flex-1 flex overflow-hidden" },
-                    // Player Area
+                // Workspace Principal
+                React.createElement('div', { className: "flex-1 flex overflow-hidden bg-slate-950" },
+                    
+                    // Zona do Vídeo
                     React.createElement('div', { className: "flex-1 flex flex-col p-4 gap-4" },
-                        React.createElement('div', { className: "flex-1 bg-black rounded-2xl overflow-hidden relative shadow-2xl border border-slate-800" },
+                        React.createElement('div', { className: "flex-1 bg-black rounded-2xl overflow-hidden relative shadow-2xl border border-slate-800 flex items-center justify-center" },
                             videoSrc ? React.createElement('video', {
                                 ref: videoRef,
                                 src: videoSrc,
                                 className: "w-full h-full object-contain",
-                                onTimeUpdate: () => setCurrentTime(videoRef.current.currentTime),
-                                onLoadedMetadata: () => setDuration(videoRef.current.duration)
-                            }) : React.createElement('div', { className: "w-full h-full flex flex-col items-center justify-center text-slate-700" }, 
-                                React.createElement(Film, { size: 64, className: "mb-4 opacity-20" }),
-                                React.createElement('p', { className: "font-bold text-slate-600" }, "Nenhum vídeo carregado")
+                                onClick: togglePlay,
+                                onTimeUpdate: () => setCurrentTime(videoRef.current?.currentTime || 0),
+                                onLoadedMetadata: () => setDuration(videoRef.current?.duration || 0)
+                            }) : React.createElement('div', { className: "flex flex-col items-center justify-center text-slate-700" }, 
+                                React.createElement(Film, { size: 64, className: "mb-4 opacity-30" }),
+                                React.createElement('p', { className: "font-bold text-slate-500 uppercase tracking-widest text-sm" }, "Aguardando Ficheiro de Vídeo")
                             ),
                             
-                            inPoint !== null && React.createElement('div', { className: "absolute top-4 left-4 flex items-center gap-2 bg-emerald-600 text-white px-3 py-1.5 rounded-full text-[10px] font-black shadow-lg animate-pulse" }, 
+                            // Indicador de Ponto IN
+                            inPoint !== null && React.createElement('div', { className: "absolute top-6 left-6 flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-black shadow-lg shadow-emerald-900/50 animate-pulse border border-emerald-400" }, 
                                 React.createElement('div', { className: "w-2 h-2 bg-white rounded-full" }),
-                                `MARCAÇÃO ATIVA EM ${formatTime(inPoint)}`
+                                `CORTE INICIADO: ${formatTime(inPoint)}`
                             )
                         ),
 
                         // Timeline Controls
-                        React.createElement('div', { className: "h-24 glass rounded-2xl p-4 flex flex-col gap-2" },
+                        React.createElement('div', { className: "h-auto glass rounded-2xl p-4 flex flex-col gap-3 border border-slate-800" },
                             React.createElement('input', { 
-                                type: "range", className: "w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer",
-                                min: 0, max: duration, step: 0.1, value: currentTime,
-                                onChange: (e) => { videoRef.current.currentTime = e.target.value }
+                                type: "range", className: "w-full focus:outline-none",
+                                min: 0, max: duration || 100, step: 0.1, value: currentTime,
+                                onChange: (e) => { 
+                                    const val = parseFloat(e.target.value);
+                                    setCurrentTime(val);
+                                    if(videoRef.current) videoRef.current.currentTime = val; 
+                                }
                             }),
                             React.createElement('div', { className: "flex items-center justify-between" },
                                 React.createElement('div', { className: "flex items-center gap-4" },
-                                    React.createElement('button', { onClick: togglePlay, className: "w-10 h-10 bg-slate-800 hover:bg-slate-700 rounded-full flex items-center justify-center transition-colors" }, 
-                                        isPlaying ? React.createElement(Pause, { size: 20 }) : React.createElement(Play, { size: 20 })
+                                    React.createElement('button', { onClick: togglePlay, className: "w-12 h-12 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center transition-transform active:scale-90 text-white shadow-lg shadow-blue-900/50" }, 
+                                        isPlaying ? React.createElement(Pause, { size: 24, fill: "currentColor" }) : React.createElement(Play, { size: 24, fill: "currentColor", className: "ml-1" })
                                     ),
-                                    React.createElement('span', { className: "text-xs font-mono font-bold text-slate-400" }, `${formatTime(currentTime)} / ${formatTime(duration)}`)
+                                    React.createElement('div', { className: "bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700" },
+                                        React.createElement('span', { className: "text-sm font-mono font-bold text-blue-400" }, formatTime(currentTime)),
+                                        React.createElement('span', { className: "text-sm font-mono text-slate-600 mx-1" }, "/"),
+                                        React.createElement('span', { className: "text-sm font-mono text-slate-400" }, formatTime(duration))
+                                    )
                                 ),
-                                React.createElement('div', { className: "flex gap-2" },
-                                    React.createElement(Button, { variant: "secondary", icon: Timer, onClick: () => setInPoint(currentTime) }, "Z: Ponto In"),
-                                    React.createElement(Button, { variant: "danger", icon: Scissors, onClick: () => { videoRef.current.pause(); setIsPlaying(false); setIsModalOpen(true); } }, "X: Cortar Lance")
+                                React.createElement('div', { className: "flex gap-3" },
+                                    React.createElement('button', { 
+                                        onClick: () => { if(!videoRef.current) return; setInPoint(videoRef.current.currentTime); },
+                                        className: `px-6 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-lg ${inPoint !== null ? 'bg-emerald-600 text-white border border-emerald-500 shadow-emerald-900/50' : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'}`
+                                    }, "Z: INÍCIO DO LANCE"),
+                                    React.createElement('button', { 
+                                        onClick: () => { if(!videoRef.current) return; videoRef.current.pause(); setIsPlaying(false); setIsModalOpen(true); },
+                                        className: "px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-900/50 border border-red-500 transition-all active:scale-95" 
+                                    }, "X: CORTAR & AVALIAR")
                                 )
                             )
                         )
                     ),
 
-                    // Sidebar: Clips List
-                    React.createElement('aside', { className: "w-80 border-l border-slate-800 flex flex-col glass" },
-                        React.createElement('div', { className: "p-4 border-b border-slate-800" },
-                            React.createElement('h3', { className: "text-xs font-black text-slate-500 uppercase tracking-widest" }, "Lista de Cortes")
+                    // Sidebar Lista de Cortes Segura
+                    React.createElement('aside', { className: "w-80 border-l border-slate-800 flex flex-col glass z-10" },
+                        React.createElement('div', { className: "p-4 border-b border-slate-800 bg-slate-900" },
+                            React.createElement('h3', { className: "text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2" }, React.createElement(ListVideo, { size: 14 }), "Histórico de Cortes")
                         ),
-                        React.createElement('div', { className: "flex-1 overflow-y-auto p-4 space-y-3" },
-                            game.clips.length === 0 ? React.createElement('p', { className: "text-[10px] text-slate-600 text-center mt-10" }, "Sem cortes registados") :
-                            game.clips.map(clip => React.createElement('div', { 
+                        React.createElement('div', { className: "flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950/50" },
+                            (game.clips || []).length === 0 ? React.createElement('div', { className: "text-center mt-10 opacity-50" }, React.createElement(Scissors, { size: 32, className: "mx-auto mb-2 text-slate-600" }), React.createElement('p', { className: "text-xs text-slate-500 font-bold" }, "Sem cortes registados")) :
+                            (game.clips || []).map(clip => React.createElement('div', { 
                                 key: clip.id, 
-                                onClick: () => { videoRef.current.currentTime = clip.start; videoRef.current.play(); setIsPlaying(true); },
-                                className: "bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-blue-500 transition-all cursor-pointer relative" 
+                                onClick: () => { if(videoRef.current) { videoRef.current.currentTime = clip.start; videoRef.current.play(); setIsPlaying(true); } },
+                                className: "bg-slate-900 border border-slate-800 rounded-xl p-3 hover:border-blue-500 transition-all cursor-pointer relative group overflow-hidden" 
                             },
-                                React.createElement('div', { className: `absolute left-0 top-0 bottom-0 w-1 ${clip.team === 'A' ? 'bg-blue-600' : 'bg-red-600'}` }),
-                                React.createElement('div', { className: "flex justify-between items-start mb-2" },
-                                    React.createElement('span', { className: "text-[10px] font-mono text-blue-400 font-bold" }, `${formatTime(clip.start)} - ${formatTime(clip.end)}`),
+                                React.createElement('div', { className: `absolute left-0 top-0 bottom-0 w-1.5 ${clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'}` }),
+                                React.createElement('div', { className: "flex justify-between items-start mb-2 pl-2" },
+                                    React.createElement('span', { className: "text-[11px] font-mono text-slate-300 font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800" }, `${formatTime(clip.start)} - ${formatTime(clip.end)}`),
                                     React.createElement('button', { 
                                         onClick: (e) => { e.stopPropagation(); setGames(games.map(g => g.id === gameId ? {...g, clips: g.clips.filter(c => c.id !== clip.id)} : g)) },
-                                        className: "text-slate-600 hover:text-red-500"
-                                    }, React.createElement(Trash2, { size: 12 }))
+                                        className: "text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950 p-1 rounded"
+                                    }, React.createElement(Trash2, { size: 14 }))
                                 ),
-                                React.createElement('div', { className: "flex flex-wrap gap-1" },
-                                    clip.tags.slice(0, 3).map(t => React.createElement('span', { key: t, className: "text-[9px] bg-slate-800 px-1 py-0.5 rounded text-slate-400" }, t))
+                                React.createElement('div', { className: "flex flex-wrap gap-1.5 pl-2" },
+                                    (clip.tags || []).slice(0, 4).map(t => React.createElement('span', { key: t, className: "text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-bold" }, t))
                                 )
                             ))
                         )
                     )
                 ),
 
-                // Tagging Modal
+                // Modal de Classificação (Tagging)
                 React.createElement(Modal, {
                     isOpen: isModalOpen,
-                    onClose: () => setIsModalOpen(false),
-                    title: "Classificar Lance",
+                    onClose: () => { setIsModalOpen(false); if(videoRef.current) videoRef.current.play(); setIsPlaying(true); },
+                    title: "Classificar Lance Furtado",
                     maxWidth: "max-w-4xl"
                 }, 
                     React.createElement('div', { className: "p-6 grid grid-cols-1 md:grid-cols-2 gap-8" },
                         React.createElement('div', { className: "space-y-6" },
+                            // Equipa Ativa
                             React.createElement('div', null,
-                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3" }, "Equipa Ativa"),
+                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3 flex items-center gap-1" }, React.createElement(Shield, { size: 12 }), "Equipa Ativa no Lance"),
                                 React.createElement('div', { className: "flex gap-2" },
                                     React.createElement('button', { 
                                         onClick: () => setActiveTeam('A'),
-                                        className: `flex-1 py-3 rounded-xl border-2 font-bold transition-all ${activeTeam === 'A' ? 'bg-blue-600/10 border-blue-600 text-blue-500' : 'bg-slate-900 border-slate-800 text-slate-600'}`
-                                    }, game.teamA.name),
+                                        className: `flex-1 py-3 rounded-xl border-2 font-bold transition-all ${activeTeam === 'A' ? 'bg-blue-900/30 border-blue-500 text-blue-400 shadow-inner' : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'}`
+                                    }, game.teamA?.name),
                                     React.createElement('button', { 
                                         onClick: () => setActiveTeam('B'),
-                                        className: `flex-1 py-3 rounded-xl border-2 font-bold transition-all ${activeTeam === 'B' ? 'bg-red-600/10 border-red-600 text-red-500' : 'bg-slate-900 border-slate-800 text-slate-600'}`
-                                    }, game.teamB.name)
+                                        className: `flex-1 py-3 rounded-xl border-2 font-bold transition-all ${activeTeam === 'B' ? 'bg-red-900/30 border-red-500 text-red-400 shadow-inner' : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'}`
+                                    }, game.teamB?.name)
                                 )
                             ),
+                            
+                            // Jogadores da Equipa Ativa
                             React.createElement('div', null,
-                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3" }, "Tags do Evento"),
-                                React.createElement('div', { className: "flex flex-wrap gap-2" },
+                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3 flex items-center gap-1" }, React.createElement(Users, { size: 12 }), "Jogadores Intervenientes"),
+                                React.createElement('div', { className: "flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-slate-900/50 rounded-xl border border-slate-800" },
+                                    activePlayers.length === 0 ? React.createElement('span', { className: "text-xs text-slate-500 italic" }, "Sem jogadores registados no plantel.") :
+                                    activePlayers.map(p => React.createElement(TagButton, {
+                                        key: p.id,
+                                        label: `${p.number} - ${p.name.split(' ')[0]}`,
+                                        selected: selectedPlayerIds.includes(p.id),
+                                        onClick: () => togglePlayer(p.id),
+                                        color: activeTeam === 'A' ? 'blue' : 'red'
+                                    }))
+                                )
+                            ),
+
+                            // Tags Genéricas
+                            React.createElement('div', null,
+                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3 flex items-center gap-1" }, React.createElement(Tag, { size: 12 }), "Tags do Evento"),
+                                React.createElement('div', { className: "space-y-4" },
                                     Object.entries(staticCategories).map(([cat, items]) => (
-                                        items.map(item => React.createElement('button', {
-                                            key: item,
-                                            onClick: () => toggleTag(item),
-                                            className: `px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${currentTags.includes(item) ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-600'}`
-                                        }, item))
+                                        React.createElement('div', { key: cat },
+                                            React.createElement('span', { className: "text-[9px] text-slate-600 font-bold uppercase mb-1 block" }, cat),
+                                            React.createElement('div', { className: "flex flex-wrap gap-1.5" },
+                                                items.map(item => React.createElement(TagButton, {
+                                                    key: item, label: item,
+                                                    selected: currentTags.includes(item),
+                                                    onClick: () => toggleTag(item),
+                                                    color: cat === 'Resultado' ? 'green' : (cat === 'Turn Over' ? 'red' : 'blue')
+                                                }))
+                                            )
+                                        )
                                     ))
-                                )
-                            ),
-                            React.createElement('div', null,
-                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3" }, "Zona de Finalização"),
-                                React.createElement('div', { className: "grid grid-cols-4 gap-1" },
-                                    zones.map(z => React.createElement('button', {
-                                        key: z,
-                                        onClick: () => toggleTag(z),
-                                        className: `p-2 rounded border text-[10px] font-bold ${currentTags.includes(z) ? 'bg-yellow-600 border-yellow-600 text-white' : 'bg-slate-900 border-slate-800 text-slate-600'}`
-                                    }, z.replace("Zona ", "Z")))
                                 )
                             )
                         ),
-                        React.createElement('div', { className: "space-y-6" },
+                        React.createElement('div', { className: "space-y-6 flex flex-col" },
+                            // Heatmap Clickable
                             React.createElement('div', null,
-                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3" }, "Heatmap Preview"),
-                                React.createElement(StatsCourt, { zoneStats: currentTags.reduce((acc, t) => zones.includes(t) ? {...acc, [t]: {shots: 1, goals: currentTags.includes("Golo") ? 1 : 0, efficiency: currentTags.includes("Golo") ? 1 : 0}} : acc, {}) })
+                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3 flex items-center gap-1" }, React.createElement(MapPin, { size: 12 }), "Zona de Finalização"),
+                                React.createElement('div', { className: "grid grid-cols-4 gap-1.5 mb-3" },
+                                    zones.map(z => React.createElement('button', {
+                                        key: z, onClick: () => toggleTag(z),
+                                        className: `py-2 rounded-lg text-[10px] font-bold border transition-colors ${currentTags.includes(z) ? 'bg-amber-500 border-amber-400 text-slate-900 shadow-lg shadow-amber-900/50' : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-amber-500/50 hover:text-amber-400'}`
+                                    }, z.replace("Zona ", "Z")))
+                                ),
+                                React.createElement('div', { className: "pointer-events-none opacity-50" },
+                                    React.createElement(StatsCourt, { zoneStats: currentTags.reduce((acc, t) => zones.includes(t) ? {...acc, [t]: {shots: 1, goals: currentTags.includes("Golo") ? 1 : 0, efficiency: currentTags.includes("Golo") ? 1 : 0}} : acc, {}) })
+                                )
                             ),
-                            React.createElement('div', null,
-                                React.createElement('label', { className: "block text-[10px] font-black text-slate-500 uppercase mb-3" }, "Notas do Scouting"),
-                                React.createElement('textarea', {
-                                    className: "w-full h-24 bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm focus:border-blue-500 outline-none",
-                                    placeholder: "Ex: Cruzamento entre Central e Lateral Esquerda...",
-                                    value: comment,
-                                    onChange: e => setComment(e.target.value)
-                                })
-                            ),
-                            React.createElement('div', { className: "flex gap-2" },
-                                React.createElement(Button, { className: "flex-1", variant: "primary", size: "lg", onClick: handleSaveClip }, "Guardar Corte")
+                            
+                            // Botão de Gravar
+                            React.createElement('div', { className: "mt-auto pt-6" },
+                                React.createElement(Button, { className: "w-full py-4 text-lg", variant: "primary", icon: Save, onClick: handleSaveClip }, "Guardar Corte na Base de Dados")
                             )
                         )
                     )
@@ -666,17 +806,19 @@
                 setView('analyzer');
             };
 
-            if (view === 'dashboard') return React.createElement(Dashboard, { 
-                storage, 
-                onSelectGame: navigateToGame 
-            });
-
-            if (view === 'analyzer') return React.createElement(Analyzer, { 
-                gameId: selectedGameId, 
-                storage, 
-                onBack: () => setView('dashboard') 
-            });
-
+            // Error Boundary de topo simples
+            try {
+                if (view === 'dashboard') return React.createElement(Dashboard, { storage, onSelectGame: navigateToGame });
+                if (view === 'analyzer') return React.createElement(Analyzer, { gameId: selectedGameId, storage, onBack: () => setView('dashboard') });
+            } catch (error) {
+                console.error("Critical Error", error);
+                return React.createElement('div', { className: "p-10 flex flex-col items-center justify-center h-screen bg-slate-950 text-white" }, 
+                    React.createElement(AlertTriangle, { size: 64, className: "text-red-500 mb-4" }),
+                    React.createElement('h1', { className: "text-2xl font-bold mb-2" }, "Ocorreu um Erro Crítico"),
+                    React.createElement('p', { className: "text-slate-400 mb-6" }, "Os teus dados estão seguros, mas a interface quebrou."),
+                    React.createElement(Button, { onClick: () => window.location.reload() }, "Recarregar Aplicação")
+                );
+            }
             return null;
         }
 
