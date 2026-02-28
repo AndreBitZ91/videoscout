@@ -192,7 +192,9 @@
             const getSafeItem = (key, defaultVal) => {
                 try {
                     const item = localStorage.getItem(key);
-                    return item ? JSON.parse(item) : defaultVal;
+                    const parsed = item ? JSON.parse(item) : defaultVal;
+                    // Proteção extra: se o localStorage tiver a string "null", força o array vazio
+                    return parsed === null ? defaultVal : parsed;
                 } catch (error) {
                     console.error(`Erro ao ler ${key} do LocalStorage. Resetando.`, error);
                     return defaultVal;
@@ -227,15 +229,19 @@
             const [isNewGameOpen, setIsNewGameOpen] = useState(false);
             const [newGame, setNewGame] = useState({ compId: '', teamAId: '', teamBId: '', date: new Date().toISOString().split('T')[0] });
 
-            const sortedGames = useMemo(() => [...games].sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)), [games]);
+            // Garantir que games é sempre um array para evitar crashs (ecrã branco)
+            const sortedGames = useMemo(() => [...(games || [])].sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)), [games]);
 
             const handleCreateGame = () => {
                 if (!newGame.compId || !newGame.teamAId || !newGame.teamBId) return alert("Preenche todos os campos!");
                 if (newGame.teamAId === newGame.teamBId) return alert("As equipas devem ser diferentes!");
 
-                const comp = comps.find(c => c.id === newGame.compId);
-                const tA = teams.find(t => t.id === newGame.teamAId);
-                const tB = teams.find(t => t.id === newGame.teamBId);
+                const comp = (comps || []).find(c => c.id === newGame.compId);
+                const tA = (teams || []).find(t => t.id === newGame.teamAId);
+                const tB = (teams || []).find(t => t.id === newGame.teamBId);
+                
+                // Proteção caso uma equipa ou competição tenha sido apagada
+                if (!comp || !tA || !tB) return alert("Erro: Competição ou equipa não encontrada. Atualiza a página e tenta de novo.");
                 
                 const game = {
                     id: Date.now().toString(),
@@ -268,6 +274,29 @@
                 a.click();
             };
 
+            const handleImportData = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (data.teams && data.games && data.comps) {
+                            setTeams(data.teams);
+                            setGames(data.games);
+                            setComps(data.comps);
+                            alert("Base de dados importada com sucesso!");
+                        } else {
+                            alert("Ficheiro inválido. Certifica-te que é um backup do AT Analyzer.");
+                        }
+                    } catch (err) {
+                        alert("Erro ao ler ficheiro. O ficheiro pode estar corrompido.");
+                    }
+                    e.target.value = null; // Reseta o input para permitir importar o mesmo ficheiro novamente
+                };
+                reader.readAsText(file);
+            };
+
             return React.createElement('div', { className: "flex flex-col h-screen" },
                 React.createElement('header', { className: "h-20 glass flex items-center justify-between px-8 shrink-0 z-10 shadow-lg" },
                     React.createElement('div', { className: "flex items-center gap-4" },
@@ -278,9 +307,14 @@
                         )
                     ),
                     React.createElement('div', { className: "flex items-center gap-3" },
+                        React.createElement('input', { 
+                            type: "file", id: "db-upload", className: "hidden", 
+                            accept: ".json", onChange: handleImportData 
+                        }),
+                        React.createElement(Button, { variant: "secondary", size: "sm", icon: Upload, onClick: () => document.getElementById('db-upload').click() }, "Importar DB"),
                         React.createElement(Button, { variant: "secondary", size: "sm", icon: Download, onClick: exportAllData }, "Backup DB"),
                         React.createElement(Button, { variant: "primary", size: "sm", icon: Plus, onClick: () => {
-                            if (comps.length === 0 || teams.length < 2) return alert("Cria pelo menos 1 Competição e 2 Equipas primeiro.");
+                            if ((comps || []).length === 0 || (teams || []).length < 2) return alert("Cria pelo menos 1 Competição e 2 Equipas primeiro.");
                             setIsNewGameOpen(true);
                         } }, "Novo Jogo")
                     )
@@ -431,7 +465,7 @@
                     React.createElement(Button, { icon: Plus, onClick: () => setIsNewTeamOpen(true) }, "Adicionar Equipa")
                 ),
                 React.createElement('div', { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" },
-                    teams.map(team => React.createElement(Card, { key: team.id, title: team.name, icon: Shield },
+                    (teams || []).map(team => React.createElement(Card, { key: team.id, title: team.name, icon: Shield },
                         React.createElement('div', { className: "text-center py-4" },
                             React.createElement('div', { className: "w-16 h-16 bg-slate-800 rounded-2xl mx-auto mb-4 flex items-center justify-center border border-slate-700 overflow-hidden" },
                                 team.logo ? React.createElement('img', { src: team.logo, className: "w-full p-2 h-full object-contain" }) : React.createElement(Shield, { size: 32, className: "text-slate-600" })
@@ -494,7 +528,7 @@
                     React.createElement(Button, { icon: Plus, onClick: () => setIsNewCompOpen(true) }, "Nova Competição")
                 ),
                 React.createElement('div', { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" },
-                    comps.map(c => React.createElement(Card, { key: c.id, title: c.name, icon: Trophy },
+                    (comps || []).map(c => React.createElement(Card, { key: c.id, title: c.name, icon: Trophy },
                         React.createElement('p', { className: "text-sm text-slate-400 font-bold bg-slate-800 inline-block px-3 py-1 rounded border border-slate-700" }, c.season),
                         React.createElement('div', { className: "mt-4 flex justify-end" },
                              React.createElement(Button, { size: "sm", variant: "ghost", icon: Trash2, onClick: () => { if(confirm("Apagar?")) setComps(comps.filter(co => co.id !== c.id)) } })
